@@ -67,7 +67,7 @@ G.MenuUI = (() => {
     $('menu-stats').innerHTML =
       `Runs <b style="color:#fff">${st.runs}</b> · Mejor tiempo <b style="color:#fff">${G.U.mmss(st.bestTime)}</b><br>` +
       `Mejor nivel <b style="color:#fff">${st.bestLevel}</b> · Derrotados <b style="color:#fff">${st.totalKills.toLocaleString('es')}</b>` +
-      (!G.DB.guest ? '' : G.DB.storageOk ? '<br><span style="color:var(--muted)">Modo invitado: guardado sólo en este navegador</span>'
+      (!G.DB.guest || window.PS_APP ? '' : G.DB.storageOk ? '<br><span style="color:var(--muted)">Modo invitado: guardado sólo en este navegador</span>'
         : '<br><span style="color:#ffb0b8">Modo invitado: no se guarda</span>');
 
     socialLine();

@@ -335,6 +335,8 @@ G.DB = (() => {
 
   async function initCloud() {
     const cfg = G.FIREBASE_CONFIG;
+    // App de móvil: un jugador y sin conexión, la partida sólo en el dispositivo.
+    if (window.PS_APP) { localReason = 'app'; return false; }
     if (!/^https?:$/.test(location.protocol)) { localReason = 'file'; return false; }
     if (!cfg || !cfg.apiKey || !cfg.projectId) { localReason = 'config'; return false; }
     await loadScript(SDK + 'firebase-app-compat.js');

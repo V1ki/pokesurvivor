@@ -71,7 +71,7 @@ G.Updater = (() => {
   }
 
   function init() {
-    if (!mine || !location.protocol.startsWith('http')) return;
+    if (!mine || !location.protocol.startsWith('http') || window.PS_APP) return;
     clearInterval(timer);
     timer = setInterval(loop, 2000);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Date.now() - lastCheck > 60000) check(); });

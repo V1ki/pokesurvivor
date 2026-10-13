@@ -1,0 +1,10 @@
+{
+  "appId": "com.v1ki.pokesurvivor",
+  "appName": "PokéSurvivor",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#0a1430",
+    "allowMixedContent": false,
+    "captureInput": true
+  }
+}

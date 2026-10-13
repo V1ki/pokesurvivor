@@ -1,0 +1,20 @@
+{
+  "name": "pokesurvivor-android",
+  "private": true,
+  "version": "1.0.0",
+  "description": "PokéSurvivor como app de Android (Capacitor): un jugador, sin conexión.",
+  "scripts": {
+    "www": "node build-www.js",
+    "sync": "npm run www && npx cap sync android",
+    "apk": "npm run sync && cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/app": "^6.0.2",
+    "@capacitor/core": "^6.2.1",
+    "@capacitor/haptics": "^6.0.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.1"
+  }
+}

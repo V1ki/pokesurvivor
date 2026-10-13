@@ -18,6 +18,9 @@ G.CHANGELOG = [
   ], chg: [
     ['Ya no hay comprobaciones contra trampas: todas las partidas cuentan para el ranking y los récords, y no se pierde nada de lo ganado.',
      'No more anti-cheat checks: every run counts for the leaderboard and your records, and nothing you earn is taken away.']
+  ], fix: [
+    ['El test de personalidad cabe entero en móviles en horizontal (antes la cuarta respuesta quedaba oculta).',
+     'The personality test now fits on phones in landscape (the fourth answer used to be hidden).']
   ] },
   { d: '2026-10-12', title: ['Tiempo extra y grietas con menos azar', 'Overtime and less random rifts'], new: [
     ['Tiempo extra: desde el minuto 60 los Pokémon salvajes se vuelven cada vez más fuertes (más vida y más daño), y cada vez más deprisa. Antes, con las mejoras al máximo, algunas partidas no acababan nunca; ahora las mejores rondarán la hora y media.',

@@ -1181,6 +1181,12 @@ G.I18n.add({
   'Tu progreso de invitado pasará a tu cuenta nueva.': '你的游客进度会转入新账号。',
   'Tu progreso de invitado ha pasado a tu cuenta.': '游客进度已转入你的账号。',
 
+  // ---------------- app de móvil (un jugador) ----------------
+  'Tu partida se guarda en este dispositivo.': '你的存档保存在这台设备上。',
+  'Borrar partida': '删除存档',
+  'Se borrará toda tu partida de este dispositivo. ¿Seguro?': '将删除这台设备上的全部存档。确定吗？',
+  'Partida borrada': '存档已删除',
+
   // ---------------- personalidad (test) ----------------
   'Valiente': '勇敢',
   'Impulsivo': '冲动',

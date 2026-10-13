@@ -548,5 +548,11 @@ G.I18n.add({
   'Se borrará todo tu progreso de invitado en este navegador. ¿Seguro?': 'All your guest progress in this browser will be deleted. Are you sure?',
   'Datos de invitado borrados': 'Guest data deleted',
   'Tu progreso de invitado pasará a tu cuenta nueva.': 'Your guest progress will move to your new account.',
-  'Tu progreso de invitado ha pasado a tu cuenta.': 'Your guest progress has moved to your account.'
+  'Tu progreso de invitado ha pasado a tu cuenta.': 'Your guest progress has moved to your account.',
+
+  // ---------------- app de móvil (un jugador) ----------------
+  'Tu partida se guarda en este dispositivo.': 'Your game is saved on this device.',
+  'Borrar partida': 'Delete save',
+  'Se borrará toda tu partida de este dispositivo. ¿Seguro?': 'Your whole save on this device will be deleted. Are you sure?',
+  'Partida borrada': 'Save deleted'
 });

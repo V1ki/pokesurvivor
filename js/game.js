@@ -832,7 +832,11 @@ G.Flow = {
     el.addEventListener('click', go);
     addEventListener('keydown', go, true);
   },
-  toLogin() { G.Audio.music('village'); G.LoginUI.open(); },
+  toLogin() {
+    // App de móvil: no hay cuentas; se juega con la partida del dispositivo (la de invitado).
+    if (window.PS_APP) { G.DB.playAsGuest(); this.afterLogin(); return; }
+    G.Audio.music('village'); G.LoginUI.open();
+  },
   afterLogin() {
     G.Audio.music('village');
     if (!G.DB.save.partner) G.TestUI.start();

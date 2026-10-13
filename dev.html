@@ -292,6 +292,8 @@
     var n = ((navigator.languages && navigator.languages[0]) || navigator.language || 'es').toLowerCase();
     var l = s === 'es' || s === 'en' || s === 'zh' ? s : (/\/en(\/|$)/.test(location.pathname) ? 'en' : (n.indexOf('es') === 0 ? 'es' : n.indexOf('zh') === 0 ? 'zh' : 'en'));
     document.documentElement.lang = l === 'zh' ? 'zh-CN' : l;
+    // App de móvil (mobile/, Capacitor): un jugador, sin conexión (ver css/style.css .ps-app).
+    if (window.PS_APP) document.documentElement.classList.add('ps-app');
     var p = document.querySelectorAll('#boot p');
     if (l === 'en') {
       p[0].textContent = 'A Pokémon survival game, free in your browser and on mobile.';

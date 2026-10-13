@@ -54,7 +54,7 @@
   else boot();
 
   // Instalable como app (PWA). Sólo con http(s): abierto con doble clic (file://) no hace falta.
-  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !window.PS_APP) {
     addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(e => console.warn('[PWA]', e.message)));
   }
 })();

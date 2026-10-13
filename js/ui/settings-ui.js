@@ -126,6 +126,11 @@ G.SettingsUI = (() => {
     const st = G.DB.guest ? 'guest' : G.DB.syncState;
     const SYNC = { ok: 'Guardado en la nube', syncing: 'Guardando…', pending: 'Pendiente de subir (se sube al salir del juego)',
                    offline: 'Sin conexión: se subirá al volver', local: 'Guardado sólo en este navegador', guest: 'Invitado: no se guarda' };
+    if (window.PS_APP) {
+      box.innerHTML = section('Partida', 'Tu partida se guarda en este dispositivo.')
+        + `<div class="row wrap" style="gap:8px;margin-top:12px"><button class="btn danger" id="set-guest-del">Borrar partida</button></div>`;
+      return;
+    }
     if (G.DB.guest) {
       box.innerHTML = section('Cuenta', G.DB.storageOk
           ? 'Estás jugando como <b>invitado</b>: tu progreso se guarda sólo en este navegador. Si creas una cuenta, pasa a ella.'
@@ -159,11 +164,12 @@ G.SettingsUI = (() => {
     const out = $('set-logout'); if (out) out.onclick = () => { close(); leave(); };
     const gdel = $('set-guest-del');
     if (gdel) gdel.onclick = () => {
-      if (!confirm('Se borrará todo tu progreso de invitado en este navegador. ¿Seguro?')) return;
+      if (!confirm(window.PS_APP ? 'Se borrará toda tu partida de este dispositivo. ¿Seguro?'
+        : 'Se borrará todo tu progreso de invitado en este navegador. ¿Seguro?')) return;
       close();
       if (G.Game.state !== 'ui') G.Game.quit && G.Game.quit();
       G.DB.clearGuest();
-      G.UI.toast('Datos de invitado borrados');
+      G.UI.toast(window.PS_APP ? 'Partida borrada' : 'Datos de invitado borrados');
       G.Audio.music(null);
       G.Flow.toLogin();
     };
