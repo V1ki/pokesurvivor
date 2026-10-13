@@ -543,8 +543,10 @@ G.I18n.add({
   'Continuar como invitado': 'Continue as guest',
   'Tu partida se guarda en la nube: entra desde cualquier ordenador. Como invitado, sólo en este navegador.': 'Your game is saved in the cloud: log in from any computer. As a guest, only in this browser.',
   'Modo invitado: guardado sólo en este navegador': 'Guest mode: saved only in this browser',
-  ': tu progreso se guarda sólo en este navegador (una cuenta nueva empieza de cero).': ': your progress is saved only in this browser (a new account starts from scratch).',
+  ': tu progreso se guarda sólo en este navegador. Si creas una cuenta, pasa a ella.': ': your progress is saved only in this browser. If you create an account, it moves there.',
   'Borrar datos de invitado': 'Delete guest data',
   'Se borrará todo tu progreso de invitado en este navegador. ¿Seguro?': 'All your guest progress in this browser will be deleted. Are you sure?',
-  'Datos de invitado borrados': 'Guest data deleted'
+  'Datos de invitado borrados': 'Guest data deleted',
+  'Tu progreso de invitado pasará a tu cuenta nueva.': 'Your guest progress will move to your new account.',
+  'Tu progreso de invitado ha pasado a tu cuenta.': 'Your guest progress has moved to your account.'
 });

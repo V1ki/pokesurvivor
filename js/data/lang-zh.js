@@ -1174,10 +1174,12 @@ G.I18n.add({
   'Continuar como invitado': '继续以游客身份游玩',
   'Tu partida se guarda en la nube: entra desde cualquier ordenador. Como invitado, sólo en este navegador.': '你的存档保存在云端：在任何电脑上登录即可继续。游客模式仅保存在本浏览器中。',
   'Modo invitado: guardado sólo en este navegador': '游客模式：仅保存在本浏览器中',
-  ': tu progreso se guarda sólo en este navegador (una cuenta nueva empieza de cero).': '：你的进度只保存在本浏览器中（新账号会从头开始）。',
+  ': tu progreso se guarda sólo en este navegador. Si creas una cuenta, pasa a ella.': '：你的进度只保存在本浏览器中。注册新账号后，进度会转入新账号。',
   'Borrar datos de invitado': '删除游客数据',
   'Se borrará todo tu progreso de invitado en este navegador. ¿Seguro?': '将删除本浏览器中的全部游客进度。确定吗？',
   'Datos de invitado borrados': '游客数据已删除',
+  'Tu progreso de invitado pasará a tu cuenta nueva.': '你的游客进度会转入新账号。',
+  'Tu progreso de invitado ha pasado a tu cuenta.': '游客进度已转入你的账号。',
 
   // ---------------- personalidad (test) ----------------
   'Valiente': '勇敢',

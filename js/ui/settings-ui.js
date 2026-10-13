@@ -128,7 +128,7 @@ G.SettingsUI = (() => {
                    offline: 'Sin conexión: se subirá al volver', local: 'Guardado sólo en este navegador', guest: 'Invitado: no se guarda' };
     if (G.DB.guest) {
       box.innerHTML = section('Cuenta', G.DB.storageOk
-          ? 'Estás jugando como <b>invitado</b>: tu progreso se guarda sólo en este navegador (una cuenta nueva empieza de cero).'
+          ? 'Estás jugando como <b>invitado</b>: tu progreso se guarda sólo en este navegador. Si creas una cuenta, pasa a ella.'
           : 'Estás jugando como <b>invitado</b>: tu progreso no se guarda al salir.')
         + `<div class="row wrap" style="gap:8px;margin-top:12px">
              <button class="btn gold" id="set-login">Crear cuenta o entrar</button>

@@ -12,7 +12,9 @@ G.CHANGELOG = [
     ['En chino, los textos usan una fuente pixel china (Fusion Pixel Font) a juego con la del juego.',
      'In Chinese, text uses a Chinese pixel font (Fusion Pixel Font) that matches the game\'s own.'],
     ['Modo invitado: tu progreso ahora se guarda en este navegador y, al volver, sigues donde lo dejaste (antes se perdía al salir). Se puede borrar en Ajustes › Cuenta.',
-     'Guest mode: your progress is now saved in this browser, and when you come back you pick up where you left off (before, it was lost when you left). You can delete it in Settings › Account.']
+     'Guest mode: your progress is now saved in this browser, and when you come back you pick up where you left off (before, it was lost when you left). You can delete it in Settings › Account.'],
+    ['Al crear una cuenta (o entrar por primera vez con Google), tu progreso de invitado pasa a ella.',
+     'When you create an account (or sign in with Google for the first time), your guest progress moves into it.']
   ], chg: [
     ['Ya no hay comprobaciones contra trampas: todas las partidas cuentan para el ranking y los récords, y no se pierde nada de lo ganado.',
      'No more anti-cheat checks: every run counts for the leaderboard and your records, and nothing you earn is taken away.']

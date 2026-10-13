@@ -16,6 +16,7 @@ G.LoginUI = (() => {
       $('btn-auth').disabled = false;
       if (!r.ok) { $('login-err').textContent = r.error; return; }
       $('f-pass').value = '';
+      if (r.fromGuest) G.UI.toast('Tu progreso de invitado ha pasado a tu cuenta.');
       G.Flow.afterLogin();
     };
     $('btn-guest').onclick = () => { G.DB.playAsGuest(); G.Flow.afterLogin(); };
@@ -25,9 +26,13 @@ G.LoginUI = (() => {
       const r = await G.DB.loginWithGoogle();
       $('btn-google').disabled = false;
       if (!r.ok) { $('login-err').textContent = r.error; return; }
+      if (r.fromGuest) G.UI.toast('Tu progreso de invitado ha pasado a tu cuenta.');
       G.Flow.afterLogin();
     };
   }
+
+  /** Aviso al crear cuenta: la partida de invitado de este navegador pasa a ella. */
+  function carryNote() { $('guest-carry').classList.toggle('hidden', !(mode === 'register' && G.DB.hasGuestSave)); }
 
   /** Explica dónde se guarda la partida según el modo de la base de datos. */
   function modeNote() {
@@ -46,6 +51,7 @@ G.LoginUI = (() => {
     $('btn-auth').textContent = m === 'login' ? 'Entrar' : 'Crear cuenta';
     $('f-pass').autocomplete = m === 'login' ? 'current-password' : 'new-password';
     $('login-err').textContent = '';
+    carryNote();
     // Sólo se pregunta si quedan plazas al ir a crear cuenta (cada llamada al Worker cuenta).
     if (m === 'register' && G.DB.mode === 'cloud' && G.Signups) G.Signups.check().then(applySignups);
   }
@@ -74,6 +80,7 @@ G.LoginUI = (() => {
     $('btn-google').classList.toggle('hidden', G.DB.mode !== 'cloud');
     $('login-mode').textContent = modeNote();
     $('btn-guest').textContent = G.DB.hasGuestSave ? 'Continuar como invitado' : 'Jugar como invitado';
+    carryNote();
     setTimeout(() => $('f-user').focus(), 50);
   }
 

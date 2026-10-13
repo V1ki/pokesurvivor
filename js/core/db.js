@@ -26,6 +26,8 @@
  * (en los dos modos) y se recupera al volver, como una cuenta local.
  *       ps.guest          partida del invitado
  *       ps.guest.session  hay un invitado jugando (al recargar, sigue)
+ * Al crear una cuenta (o entrar por primera vez con Google), la partida de
+ * invitado pasa a la cuenta nueva y se quita del navegador (ver guestCarry).
  * Si el navegador no deja guardar (modo incógnito...), juega en memoria como antes.
  */
 G.DB = (() => {
@@ -266,8 +268,12 @@ G.DB = (() => {
     accs[k] = { name, salt, hash: await hash(pass, salt), created: Date.now() };
     if (!write(K_ACC, accs)) return { ok: false, error: 'El navegador no deja guardar datos (¿modo incógnito?).' };
     beginLocal(k, name);
+    // La partida de invitado de este navegador pasa a la cuenta nueva.
+    const g = guestCarry(name);
+    if (g) save = g;
     write(K_SAVE + k, save);
-    return { ok: true, isNew: true };
+    if (g) remove(K_GUEST);
+    return { ok: true, isNew: !save.partner, fromGuest: !!g };
   }
 
   async function loginLocal(name, pass) {
@@ -374,7 +380,11 @@ G.DB = (() => {
   const docRef = () => fs.collection('saves').doc(uid);
   const plain = s => JSON.parse(JSON.stringify(s));      // Firestore no admite undefined
 
-  /** Abre la partida de la nube de un usuario recién autenticado. */
+  /**
+   * Abre la partida de la nube de un usuario recién autenticado.
+   * opts.guest: partida de invitado para una cuenta nueva (sólo se usa si la
+   * cuenta aún no tiene partida). → true si se ha usado.
+   */
   async function openCloud(u, opts = {}) {
     uid = u.uid;
     if (G.Signups) G.Signups.report(u);          // tope de cuentas del mes (net/signups.js)
@@ -388,7 +398,8 @@ G.DB = (() => {
       online = false;
     }
     let s = merge(cached && migrate(cached), remote && migrate(remote));
-    if (!s) s = newSave(opts.name || displayNameOf(u));
+    const fromGuest = !s && !!opts.guest;
+    if (!s) s = opts.guest || newSave(opts.name || displayNameOf(u));
     if (opts.legacy) {
       s = merge(s, opts.legacy.save);
       write(K_MIGRATED + opts.legacy.key, uid);
@@ -397,6 +408,7 @@ G.DB = (() => {
     key = uid; user = save.name; guest = false;
     remove(K_GUEST_SES);
     write(K_CLOUD + uid, save);
+    if (fromGuest) remove(K_GUEST);
     // Sólo se sube si hay algo que la nube no tenga (cuenta nueva, progreso de
     // este ordenador sin subir...), y SIN esperar: antes el menú no salía hasta
     // terminar la subida, y con Firebase lento se tardaba hasta 9 s en entrar.
@@ -407,6 +419,7 @@ G.DB = (() => {
     if (!online) { pending = true; setSync('offline'); scheduleRetry(); }
     else if (same) setSync('ok');
     else pushNow();
+    return fromGuest;
   }
 
   /*
@@ -564,8 +577,8 @@ G.DB = (() => {
       const legacy = await legacySave(name, pass);
       const cred = await auth.createUserWithEmailAndPassword(nameToEmail(name), pass);
       if (G.Signups) G.Signups.markNew(cred.user.uid);   // ya la apuntó el portero
-      await openCloud(cred.user, { name, legacy });
-      return { ok: true, isNew: !save.partner, imported: !!legacy };
+      const fromGuest = await openCloud(cred.user, { name, legacy, guest: guestCarry(name) });
+      return { ok: true, isNew: !save.partner, imported: !!legacy, fromGuest };
     } catch (e) { return { ok: false, error: authError(e) }; }
   }
 
@@ -590,9 +603,12 @@ G.DB = (() => {
         await auth.signOut().catch(() => {});
         return { ok: false, error: 'Este mes ya no quedan plazas para cuentas nuevas (vuelven el 1 de ' + G.Signups.nextMonthName() + '). Mientras, puedes jugar como invitado.' };
       }
-      if (cred.additionalUserInfo && cred.additionalUserInfo.isNewUser && G.Signups) G.Signups.markNew(cred.user.uid);
-      await openCloud(cred.user, { name: displayNameOf(cred.user) });
-      return { ok: true, isNew: !save.partner };
+      const isNewUser = !!(cred.additionalUserInfo && cred.additionalUserInfo.isNewUser);
+      if (isNewUser && G.Signups) G.Signups.markNew(cred.user.uid);
+      // Cuenta de Google nueva: se lleva la partida de invitado, como al crear cuenta.
+      const name = displayNameOf(cred.user);
+      const fromGuest = await openCloud(cred.user, { name, guest: isNewUser ? guestCarry(name) : null });
+      return { ok: true, isNew: !save.partner, fromGuest };
     } catch (e) { return { ok: false, error: authError(e) }; }
   }
 
@@ -619,6 +635,20 @@ G.DB = (() => {
     if (!read(K_GUEST_SES)) return false;
     playAsGuest();
     return true;
+  }
+
+  /**
+   * Partida de invitado de este navegador preparada para una cuenta nueva
+   * (con el nombre de la cuenta), o null si no hay. No la borra: eso se hace
+   * cuando la cuenta ya la tiene.
+   */
+  function guestCarry(name) {
+    const s = read(K_GUEST);
+    if (!s) return null;
+    const g = migrate(s, name);
+    g.name = name;
+    g.updated = Date.now();
+    return g;
   }
 
   /** Borra la partida de invitado de este navegador (y cierra la sesión de invitado). */
