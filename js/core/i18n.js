@@ -1,4 +1,4 @@
-/* ============ i18n.js — idiomas (español / inglés) ============
+/* ============ i18n.js — idiomas (español / inglés / chino) ============
  * El juego está escrito en español. Si el idioma es inglés, todo texto que
  * se enseña se traduce con el diccionario de js/data/lang-en.js, sin tener que
  * tocar cada pantalla:
@@ -14,35 +14,49 @@
  * Lo que escriben los jugadores (apodos) va marcado con translate="no".
  *
  * Idioma: el elegido en Ajustes; si no, /en/ en la dirección o el del navegador
- * (español si el navegador está en español, inglés en cualquier otro caso).
+ * (español si el navegador está en español, chino si está en chino, inglés en
+ * cualquier otro caso).
+ *
+ * Chino (js/data/lang-zh.js): se cargan también las traducciones inglesas como
+ * reserva, así lo que aún no tenga traducción china sale en inglés y no en español.
  */
 G.I18n = (() => {
   const KEY = 'ps.lang';
+  const LANGS = ['es', 'en', 'zh'];
   let saved = null;
   try { saved = localStorage.getItem(KEY); } catch (e) { /* nada */ }
   const byPath = /\/en(\/|$)/.test(location.pathname) ? 'en' : null;
   const nav = ((navigator.languages && navigator.languages[0]) || navigator.language || 'es').toLowerCase();
-  const lang = saved === 'es' || saved === 'en' ? saved : byPath || (nav.startsWith('es') ? 'es' : 'en');
-  document.documentElement.lang = lang;
+  const lang = LANGS.includes(saved) ? saved : byPath || (nav.startsWith('es') ? 'es' : nav.startsWith('zh') ? 'zh' : 'en');
+  // zh-CN: así el navegador elige la fuente china simplificada para lo que Pixelify no tiene.
+  document.documentElement.lang = lang === 'zh' ? 'zh-CN' : lang;
 
   const exact = new Map(), exactLow = new Map();
-  let patterns = [], frag = null, fragLow = null, fragMap = new Map();
+  const patterns = new Map();   // clave española -> patrón (una traducción posterior lo sustituye)
+  let frag = null, fragMap = new Map();
   const cache = new Map();
   const L = '\\p{L}\\p{N}';
   const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-  /** Añade traducciones { 'texto en español': 'English text' }. */
-  function add(dict) {
-    const fr = [];
-    for (const [es, en] of Object.entries(dict)) {
-      if (!en || es === en) continue;
+  /** Añade traducciones { 'texto en español': 'traducción' } del idioma l (inglés por defecto).
+   *  Sólo se usan las del idioma actual (y en chino también las inglesas, de reserva:
+   *  las chinas se añaden después y mandan). */
+  function add(dict, l = 'en') {
+    if (l !== lang && !(l === 'en' && lang === 'zh')) return;
+    for (const [es, tr] of Object.entries(dict)) {
+      if (!tr) continue;
+      if (es === tr) {
+        // Igual que en español: se quita la reserva inglesa que hubiera.
+        patterns.delete(es); exact.delete(es); exactLow.delete(es.toLowerCase()); fragMap.delete(es.toLowerCase());
+        continue;
+      }
       if (es.includes('{x}')) {
         const parts = es.split('{x}').map(reEsc);
-        patterns.push({ re: new RegExp('^' + parts.join('(.+?)') + '$', 'u'), reI: new RegExp('^' + parts.join('(.+?)') + '$', 'iu'), en });
+        patterns.set(es, { re: new RegExp('^' + parts.join('(.+?)') + '$', 'u'), reI: new RegExp('^' + parts.join('(.+?)') + '$', 'iu'), tr });
       } else {
-        exact.set(es, en);
-        exactLow.set(es.toLowerCase(), en);
-        if (es.length >= 4 || /\s/.test(es)) { fr.push(es); fragMap.set(es.toLowerCase(), en); }
+        exact.set(es, tr);
+        exactLow.set(es.toLowerCase(), tr);
+        if (es.length >= 4 || /\s/.test(es)) fragMap.set(es.toLowerCase(), tr);
       }
     }
     // Una sola expresión con todos los trozos (los más largos primero), sólo palabras enteras.
@@ -51,9 +65,9 @@ G.I18n = (() => {
     cache.clear();
   }
 
-  function keepCase(src, en) {
-    if (src === src.toUpperCase() && /\p{L}/u.test(src)) return en.toUpperCase();
-    return en;
+  function keepCase(src, tr) {
+    if (src === src.toUpperCase() && /\p{L}/u.test(src)) return tr.toUpperCase();
+    return tr;
   }
 
   /** Traduce un texto (sin espacios de los lados) al idioma actual. */
@@ -78,11 +92,11 @@ G.I18n = (() => {
     let r = exact.get(body);
     if (r === undefined && upper) { const e = exactLow.get(body.toLowerCase()); if (e !== undefined) r = keepCase(body, e); }
     if (r === undefined) {
-      for (const p of patterns) {
+      for (const p of patterns.values()) {
         const mm = (upper ? p.reI : p.re).exec(body);
         if (!mm) continue;
         let i = 1;
-        r = p.en.replace(/\{x\}/g, () => { const g = mm[i++]; return g === undefined ? '' : core(g); });
+        r = p.tr.replace(/\{x\}/g, () => { const g = mm[i++]; return g === undefined ? '' : core(g); });
         r = keepCase(body, r);
         break;
       }
@@ -127,7 +141,7 @@ G.I18n = (() => {
 
   function startDom() {
     if (lang === 'es') return;
-    // Los enlaces a las páginas de la web, a su versión en inglés.
+    // Los enlaces a las páginas de la web, a su versión en inglés (no hay versión china).
     const EN_LINKS = { 'guia/': 'en/guide/', 'pokedex/': 'en/pokedex/' };
     document.querySelectorAll('a[href]').forEach(a => { const h = a.getAttribute('href'); if (EN_LINKS[h]) a.setAttribute('href', EN_LINKS[h]); });
     walk(document.body);

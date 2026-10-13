@@ -15,6 +15,26 @@
   font-weight: 551 900;
   font-display: block;
 }
+/* Chino: Fusion Pixel Font 12px (OFL) dentro de la misma familia, sólo para los
+ * caracteres chinos (unicode-range): todo lo que usa Pixelify (HTML y canvas) los
+ * saca de aquí, y el navegador sólo la descarga si hay texto chino en pantalla.
+ * Se declara con los mismos grosores que las de arriba (si no, Chrome la trata
+ * como otra fuente y no la mezcla); el archivo es el mismo y se baja una vez.
+ * La negrita usa el mismo dibujo: la negrita sintética emborrona los píxeles. */
+@font-face {
+  font-family: 'Pixelify';
+  src: url('../assets/fonts/fusion-pixel/fusion-pixel-12px-proportional-zh_hans.otf.woff2') format('woff2');
+  font-weight: 400 550;
+  font-display: block;
+  unicode-range: U+2E80-2FDF, U+3000-303F, U+3100-312F, U+31C0-31EF, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FE10-FE1F, U+FE30-FE4F, U+FF00-FFEF;
+}
+@font-face {
+  font-family: 'Pixelify';
+  src: url('../assets/fonts/fusion-pixel/fusion-pixel-12px-proportional-zh_hans.otf.woff2') format('woff2');
+  font-weight: 551 900;
+  font-display: block;
+  unicode-range: U+2E80-2FDF, U+3000-303F, U+3100-312F, U+31C0-31EF, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FE10-FE1F, U+FE30-FE4F, U+FF00-FFEF;
+}
 
 :root {
   --ink: #ffffff;
@@ -106,6 +126,9 @@ input { font: inherit; }
   border-color: #fff7d6;
 }
 .btn.ghost { background: transparent; box-shadow: none; border-color: rgba(244,248,255,.35); }
+/* En chino se puede partir entre dos caracteres cualesquiera: en botones y chips,
+ * sólo por los espacios, como las palabras en español ("游客" no se parte en "游/客"). */
+:lang(zh) .btn, :lang(zh) .chip, :lang(zh) .pill { word-break: keep-all; }
 .btn.small { padding: 6px 12px; font-size: 14px; }
 .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .row.end { justify-content: flex-end; }

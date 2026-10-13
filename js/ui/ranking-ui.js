@@ -85,6 +85,7 @@ G.RankingUI = (() => {
     rows.forEach((r, i) => list.appendChild(rowEl(r, i + 1, r.uids.includes(uid))));
 
     // La frase se monta en cada idioma (traducirla por trozos sale rara).
+    if (G.I18n.lang === 'zh') { meZh(me, period, mode, dex); return; }
     const en = G.I18n.lang === 'en';
     const pn = en ? { d: 'today', w: 'this week', m: 'this month', y: 'this year', a: 'of all time' }[period]
                   : { d: 'de hoy', w: 'de esta semana', m: 'de este mes', y: 'de este año', a: 'de siempre' }[period];
@@ -97,6 +98,15 @@ G.RankingUI = (() => {
       : me ? (en ? `<span translate="no">Your best ${where} rank ${pn}: <b class="gold">#${me.pos}</b> · ${fmt(me.t)}</span>`
                  : `Tu mejor puesto ${pn} ${where}: <b class="gold">#${me.pos}</b> · ${fmt(me.t)}`)
       : (en ? `<span translate="no">You don't have a ${where} record ${pn} yet.</span>` : `Aún no tienes marca ${pn} ${where}.`);
+  }
+
+  function meZh(me, period, mode, dex) {
+    const board = { d: '日榜', w: '周榜', m: '月榜', y: '年榜', a: '总榜' }[period];
+    const where = (mode === 's' ? '单人' : '组队') + (dex ? '（' + esc(G.T(G.DEX_BY[dex].name)) + '）' : '');
+    $('rk-me').innerHTML = !G.Social.me ? '先在好友页面设置昵称，才能登上排行榜。'
+      : `<span translate="no">${me && me.out ? `你还没进入${board}${where}前 50 名。确切名次请看「总榜」。`
+        : me ? `你在${board}${where}的最佳名次：<b class="gold">#${me.pos}</b> · ${fmt(me.t)}`
+        : `你在${board}${where}还没有纪录。`}</span>`;
   }
 
   function rowEl(r, pos, mine) {

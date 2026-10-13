@@ -251,7 +251,7 @@
     <h3>Contenido de terceros</h3>
     <p>Sprites de <a href="https://github.com/PMDCollab/SpriteCollab" target="_blank" rel="noopener">SpriteCollab</a>
       (CC BY-NC 4.0, créditos completos en CREDITS.md del repositorio). Datos de la Pokédex de
-      <a href="https://pokeapi.co/" target="_blank" rel="noopener">PokeAPI</a>. Fuente Pixelify Sans (OFL).
+      <a href="https://pokeapi.co/" target="_blank" rel="noopener">PokeAPI</a>. Fuentes Pixelify Sans y Fusion Pixel Font (OFL).
       La música y los efectos de sonido son originales del proyecto.</p>
     <h3>Contacto y retirada de contenido</h3>
     <p>Si eres titular de derechos y quieres que retiremos algo, escríbenos y lo quitaremos lo
@@ -288,12 +288,23 @@
   (function () {
     var s = null; try { s = localStorage.getItem('ps.lang'); } catch (e) {}
     var n = ((navigator.languages && navigator.languages[0]) || navigator.language || 'es').toLowerCase();
-    var l = s === 'es' || s === 'en' ? s : (/\/en(\/|$)/.test(location.pathname) ? 'en' : (n.indexOf('es') === 0 ? 'es' : 'en'));
-    document.documentElement.lang = l;
+    var l = s === 'es' || s === 'en' || s === 'zh' ? s : (/\/en(\/|$)/.test(location.pathname) ? 'en' : (n.indexOf('es') === 0 ? 'es' : n.indexOf('zh') === 0 ? 'zh' : 'en'));
+    document.documentElement.lang = l === 'zh' ? 'zh-CN' : l;
+    var p = document.querySelectorAll('#boot p');
     if (l === 'en') {
-      var p = document.querySelectorAll('#boot p');
       p[0].textContent = 'A Pokémon survival game, free in your browser and on mobile.';
       p[1].textContent = 'Loading…';
+    } else if (l === 'zh') {
+      p[0].textContent = '宝可梦生存游戏，在浏览器和手机上免费畅玩。';
+      p[1].textContent = '加载中…';
+      // La fuente pixel china (css/style.css) sólo se precarga en chino.
+      var pre = document.querySelector('link[rel=preload][as=font]');
+      if (pre) {
+        var lk = document.createElement('link');
+        lk.rel = 'preload'; lk.as = 'font'; lk.type = 'font/woff2'; lk.crossOrigin = 'anonymous';
+        lk.href = pre.href.replace(/PixelifyPS-400\.ttf$/, 'fusion-pixel/fusion-pixel-12px-proportional-zh_hans.otf.woff2');
+        document.head.appendChild(lk);
+      }
     }
   })();
 </script>
@@ -526,6 +537,6 @@
 </section>
 
 <!-- datos generados -->
-<script defer src="js/app.min.js?v=dc3ae9bbfb"></script>
+<script defer src="js/app.min.js?v=7dc18dbb06"></script>
 </body>
 </html>

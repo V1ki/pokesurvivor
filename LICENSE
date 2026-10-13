@@ -31,6 +31,8 @@ SOFTWARE.
   licencia CC BY-NC 4.0. Uso NO comercial y con atribución; los autores están
   en CREDITS.md.
 - assets/fonts/: Pixelify Sans, SIL Open Font License 1.1 (assets/fonts/OFL.txt).
+- assets/fonts/fusion-pixel/: Fusion Pixel Font (TakWolf), SIL Open Font License 1.1
+  (assets/fonts/fusion-pixel/OFL.txt y LICENSES/).
 - js/data/pokedex.js: datos obtenidos de PokeAPI (https://pokeapi.co/).
 
 3) MARCAS

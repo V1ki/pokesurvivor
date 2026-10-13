@@ -21,9 +21,16 @@
   const MAINTENANCE = false;
   function maintenance() {
     if (!MAINTENANCE || /[?&]dev\b/.test(location.search)) return false;
-    const en = window.G && G.I18n ? G.I18n.lang === 'en' : !/^es/i.test(navigator.language || '');
+    const l = window.G && G.I18n ? G.I18n.lang : (/^es/i.test(navigator.language || '') ? 'es' : 'en');
+    const en = l === 'en';
     const el = document.getElementById('boot');
     el.setAttribute('translate', 'no');
+    if (l === 'zh') {
+      el.innerHTML = '<div class="boot-in"><h1>PokéSurvivor</h1><p><b>维护中。</b></p><p>我们正在把游戏迁移到新服务器，好让它继续对所有人免费。' +
+        '你的账号、存档和宝可梦都很安全。请过几个小时再来！</p>' +
+        '<button class="btn gold" style="margin-top:12px" onclick="location.reload()">重试</button></div>';
+      return true;
+    }
     el.innerHTML = '<div class="boot-in"><h1>PokéSurvivor</h1>' + (en
       ? '<p><b>We are under maintenance.</b></p><p>We are moving the game to new servers so it can stay free for everyone. ' +
         'Your account, your save and your Pokémon are safe. Please come back in a few hours!</p>'
@@ -37,8 +44,10 @@
     if (maintenance()) return;
     if (broken()) return;
     G.I18n.startDom();
-    // Espera a la fuente pixel para que la UI no salte al cargarla.
-    const ready = document.fonts && document.fonts.load ? document.fonts.load('16px Pixelify') : Promise.resolve();
+    // Espera a la fuente pixel para que la UI no salte al cargarla (en chino, también a la china).
+    const ready = document.fonts && document.fonts.load
+      ? Promise.all([document.fonts.load('16px Pixelify'), G.I18n.lang === 'zh' ? document.fonts.load('16px Pixelify', '宝可梦') : null])
+      : Promise.resolve();
     ready.catch(() => {}).then(() => G.Flow.boot());
   }
   if (document.readyState === 'loading') addEventListener('DOMContentLoaded', boot);

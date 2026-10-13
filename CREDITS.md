@@ -136,6 +136,10 @@ licencia en `assets/fonts/OFL.txt`). El juego usa una versión modificada,
 "Pixelify PS", con los números redibujados para distinguirlos mejor
 (`tools/make_font.py`).
 
+Para el chino: [Fusion Pixel Font](https://github.com/TakWolf/fusion-pixel-font)
+de TakWolf, 12px proporcional, chino simplificado (SIL Open Font License 1.1,
+licencias en `assets/fonts/fusion-pixel/`), sin modificar.
+
 ## Marca
 
 Pokémon es propiedad de Nintendo, Creatures Inc. y GAME FREAK.
