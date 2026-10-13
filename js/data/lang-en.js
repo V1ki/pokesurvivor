@@ -537,5 +537,14 @@ G.I18n.add({
     'Tap the moves you do not want in your cards ({x}). The starting move cannot be banned.',
   'Ya tienes {x} vetados: quita uno primero': 'You already have {x} banned: remove one first',
   'En iPhone, Safari no deja poner las webs a pantalla completa. Pulsa Compartir y luego "Añadir a pantalla de inicio": abriendo el juego desde ese icono se juega a pantalla completa.':
-    'On iPhone, Safari does not let websites go fullscreen. Tap Share and then "Add to Home Screen": opening the game from that icon plays it fullscreen.'
+    'On iPhone, Safari does not let websites go fullscreen. Tap Share and then "Add to Home Screen": opening the game from that icon plays it fullscreen.',
+
+  // ---------------- invitado (la partida se guarda en el navegador) ----------------
+  'Continuar como invitado': 'Continue as guest',
+  'Tu partida se guarda en la nube: entra desde cualquier ordenador. Como invitado, sólo en este navegador.': 'Your game is saved in the cloud: log in from any computer. As a guest, only in this browser.',
+  'Modo invitado: guardado sólo en este navegador': 'Guest mode: saved only in this browser',
+  ': tu progreso se guarda sólo en este navegador (una cuenta nueva empieza de cero).': ': your progress is saved only in this browser (a new account starts from scratch).',
+  'Borrar datos de invitado': 'Delete guest data',
+  'Se borrará todo tu progreso de invitado en este navegador. ¿Seguro?': 'All your guest progress in this browser will be deleted. Are you sure?',
+  'Datos de invitado borrados': 'Guest data deleted'
 });

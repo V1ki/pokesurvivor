@@ -1170,6 +1170,15 @@ G.I18n.add({
   'Fuentes:': '字体：',
   'Pixelify Sans y Fusion Pixel Font (OFL).': 'Pixelify Sans 与缝合像素字体 Fusion Pixel Font（均为 OFL）。',
 
+  // ---------------- invitado (la partida se guarda en el navegador) ----------------
+  'Continuar como invitado': '继续以游客身份游玩',
+  'Tu partida se guarda en la nube: entra desde cualquier ordenador. Como invitado, sólo en este navegador.': '你的存档保存在云端：在任何电脑上登录即可继续。游客模式仅保存在本浏览器中。',
+  'Modo invitado: guardado sólo en este navegador': '游客模式：仅保存在本浏览器中',
+  ': tu progreso se guarda sólo en este navegador (una cuenta nueva empieza de cero).': '：你的进度只保存在本浏览器中（新账号会从头开始）。',
+  'Borrar datos de invitado': '删除游客数据',
+  'Se borrará todo tu progreso de invitado en este navegador. ¿Seguro?': '将删除本浏览器中的全部游客进度。确定吗？',
+  'Datos de invitado borrados': '游客数据已删除',
+
   // ---------------- personalidad (test) ----------------
   'Valiente': '勇敢',
   'Impulsivo': '冲动',

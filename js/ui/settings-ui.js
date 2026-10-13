@@ -127,8 +127,13 @@ G.SettingsUI = (() => {
     const SYNC = { ok: 'Guardado en la nube', syncing: 'Guardando…', pending: 'Pendiente de subir (se sube al salir del juego)',
                    offline: 'Sin conexión: se subirá al volver', local: 'Guardado sólo en este navegador', guest: 'Invitado: no se guarda' };
     if (G.DB.guest) {
-      box.innerHTML = section('Cuenta', 'Estás jugando como <b>invitado</b>: tu progreso no se guarda al salir.')
-        + `<button class="btn gold" id="set-login">Crear cuenta o entrar</button>`;
+      box.innerHTML = section('Cuenta', G.DB.storageOk
+          ? 'Estás jugando como <b>invitado</b>: tu progreso se guarda sólo en este navegador (una cuenta nueva empieza de cero).'
+          : 'Estás jugando como <b>invitado</b>: tu progreso no se guarda al salir.')
+        + `<div class="row wrap" style="gap:8px;margin-top:12px">
+             <button class="btn gold" id="set-login">Crear cuenta o entrar</button>
+             <button class="btn danger" id="set-guest-del">Borrar datos de invitado</button>
+           </div>`;
       return;
     }
     const nick = G.Social.me ? G.Social.me.name : (G.DB.user || '');
@@ -152,6 +157,16 @@ G.SettingsUI = (() => {
     box.querySelectorAll('[data-lang]').forEach(b => { b.onclick = () => { if (b.dataset.lang !== G.I18n.lang) G.I18n.set(b.dataset.lang); }; });
     const lo = $('set-login'); if (lo) lo.onclick = () => { close(); leave(); };
     const out = $('set-logout'); if (out) out.onclick = () => { close(); leave(); };
+    const gdel = $('set-guest-del');
+    if (gdel) gdel.onclick = () => {
+      if (!confirm('Se borrará todo tu progreso de invitado en este navegador. ¿Seguro?')) return;
+      close();
+      if (G.Game.state !== 'ui') G.Game.quit && G.Game.quit();
+      G.DB.clearGuest();
+      G.UI.toast('Datos de invitado borrados');
+      G.Audio.music(null);
+      G.Flow.toLogin();
+    };
     const del = $('set-delete');
     if (del) del.onclick = async () => {
       const ok = await G.UI.confirmDelete();
@@ -168,7 +183,8 @@ G.SettingsUI = (() => {
 
   /** Cerrar sesión (si estás en una partida, se abandona). */
   function leave() {
-    if (G.DB.guest && !confirm('Eres invitado: se perderá todo el progreso. ¿Salir?')) return;
+    // El invitado sólo pierde la partida si el navegador no deja guardar.
+    if (G.DB.guest && !G.DB.storageOk && !confirm('Eres invitado: se perderá todo el progreso. ¿Salir?')) return;
     if (G.Game.state !== 'ui') G.Game.quit && G.Game.quit();
     G.Audio.music(null);
     G.DB.logout().then(() => G.Flow.toLogin());

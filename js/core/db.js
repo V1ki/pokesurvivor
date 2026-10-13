@@ -22,11 +22,16 @@
  *       ps.save.<clave>  partida de esa cuenta
  *       ps.session       última cuenta con sesión iniciada
  *
- * El modo invitado juega con una partida en memoria que no se guarda.
+ * El modo invitado no tiene cuenta: su partida se guarda sólo en este navegador
+ * (en los dos modos) y se recupera al volver, como una cuenta local.
+ *       ps.guest          partida del invitado
+ *       ps.guest.session  hay un invitado jugando (al recargar, sigue)
+ * Si el navegador no deja guardar (modo incógnito...), juega en memoria como antes.
  */
 G.DB = (() => {
   const K_ACC = 'ps.accounts', K_SES = 'ps.session', K_SAVE = 'ps.save.';
   const K_CLOUD = 'ps.cloud.', K_MIGRATED = 'ps.migrated.';
+  const K_GUEST = 'ps.guest', K_GUEST_SES = 'ps.guest.session';
   const VERSION = 3;
   const START_COINS = 500;
   const SDK = 'https://www.gstatic.com/firebasejs/13.0.0/';
@@ -248,6 +253,7 @@ G.DB = (() => {
 
   function beginLocal(k, name) {
     key = k; user = name; guest = false;
+    remove(K_GUEST_SES);
     save = loadLocal(k, name);
     write(K_SES, k);
   }
@@ -389,6 +395,7 @@ G.DB = (() => {
     }
     save = migrate(s, s.name);
     key = uid; user = save.name; guest = false;
+    remove(K_GUEST_SES);
     write(K_CLOUD + uid, save);
     // Sólo se sube si hay algo que la nube no tenga (cuenta nueva, progreso de
     // este ordenador sin subir...), y SIN esperar: antes el menú no salía hasta
@@ -536,9 +543,9 @@ G.DB = (() => {
     readyP = (async () => {
       try { if (await initCloud()) mode = 'cloud'; }
       catch (e) { console.warn('[DB] sin nube:', e.message); localReason = 'error'; mode = 'local'; }
-      if (mode === 'local') { setSync('local'); return restoreLocal(); }
+      if (mode === 'local') { setSync('local'); return restoreLocal() || restoreGuest(); }
       const u = await new Promise(res => { const off = auth.onAuthStateChanged(x => { off(); res(x); }); });
-      if (!u) return false;
+      if (!u) return restoreGuest();
       try { await openCloud(u); return true; }
       catch (e) { console.warn('[DB] no se pudo abrir la partida:', e.code || e.message); return false; }
     })();
@@ -596,19 +603,38 @@ G.DB = (() => {
     commit();
   }
 
+  /** Juega como invitado: sigue la partida de invitado guardada en este navegador, o empieza una. */
   function playAsGuest() {
     user = 'Invitado'; key = null; guest = true; uid = null;
-    save = newSave('Invitado');
+    const s = read(K_GUEST);
+    save = s ? migrate(s, 'Invitado') : newSave('Invitado');
     if (mode === 'local') remove(K_SES);
-    return { ok: true, isNew: true };
+    write(K_GUEST, save);
+    write(K_GUEST_SES, true);
+    return { ok: true, isNew: !save.partner };
+  }
+
+  /** Al arrancar: si se cerró jugando como invitado, sigue como invitado. */
+  function restoreGuest() {
+    if (!read(K_GUEST_SES)) return false;
+    playAsGuest();
+    return true;
+  }
+
+  /** Borra la partida de invitado de este navegador (y cierra la sesión de invitado). */
+  function clearGuest() {
+    remove(K_GUEST); remove(K_GUEST_SES);
+    if (guest) { user = key = save = uid = null; guest = false; }
   }
 
   /**
-   * Guarda la partida actual (no hace nada en modo invitado).
+   * Guarda la partida actual (la de invitado, sólo en este navegador).
    * @param urgent  lo que ha costado algo (tiradas del gacha, mejoras): se sube antes
    */
   function commit(urgent = false) {
-    if (guest || !key || !save) return false;
+    if (!save) return false;
+    if (guest) { save.updated = Date.now(); return write(K_GUEST, save); }
+    if (!key) return false;
     save.updated = Date.now();
     if (mode === 'local') return write(K_SAVE + key, save);
     write(K_CLOUD + uid, save);
@@ -631,6 +657,8 @@ G.DB = (() => {
       commit();
       remove(K_SES);
     }
+    // Invitado: la partida se queda en el navegador para la próxima vez.
+    if (guest) { commit(); remove(K_GUEST_SES); }
     clearTimeout(pushT); clearTimeout(retryT);
     user = key = save = uid = null; guest = false; pending = false;
     setSync(mode === 'cloud' ? 'ok' : 'local');
@@ -701,7 +729,7 @@ G.DB = (() => {
   }
 
   return {
-    ready, register, login, loginWithGoogle, playAsGuest, logout, commit, deleteAccount, flush: pushNow,
+    ready, register, login, loginWithGoogle, playAsGuest, clearGuest, logout, commit, deleteAccount, flush: pushNow,
     owns, grant, ownsShiny, grantShiny, merge, setName, upgradesOf,
     onSync(fn) { listeners.add(fn); },
     onLeave(fn) { leaveHooks.push(fn); },
@@ -716,6 +744,8 @@ G.DB = (() => {
     get syncState() { return syncState; },
     get user() { return user; },
     get guest() { return guest; },
+    /** ¿Hay una partida de invitado guardada en este navegador? */
+    get hasGuestSave() { return !!read(K_GUEST); },
     get save() { return save; },
     get loggedIn() { return !!save; },
     get storageOk() { return storageOk; },

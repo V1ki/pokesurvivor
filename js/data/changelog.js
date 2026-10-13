@@ -10,7 +10,9 @@ G.CHANGELOG = [
     ['Nuevo idioma: chino simplificado (简体中文). Se elige en Ajustes › Gráficos, y sale solo si el navegador está en chino.',
      'New language: Simplified Chinese (简体中文). Pick it in Settings › Graphics; it is chosen automatically if your browser is in Chinese.'],
     ['En chino, los textos usan una fuente pixel china (Fusion Pixel Font) a juego con la del juego.',
-     'In Chinese, text uses a Chinese pixel font (Fusion Pixel Font) that matches the game\'s own.']
+     'In Chinese, text uses a Chinese pixel font (Fusion Pixel Font) that matches the game\'s own.'],
+    ['Modo invitado: tu progreso ahora se guarda en este navegador y, al volver, sigues donde lo dejaste (antes se perdía al salir). Se puede borrar en Ajustes › Cuenta.',
+     'Guest mode: your progress is now saved in this browser, and when you come back you pick up where you left off (before, it was lost when you left). You can delete it in Settings › Account.']
   ], chg: [
     ['Ya no hay comprobaciones contra trampas: todas las partidas cuentan para el ranking y los récords, y no se pierde nada de lo ganado.',
      'No more anti-cheat checks: every run counts for the leaderboard and your records, and nothing you earn is taken away.']
