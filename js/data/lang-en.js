@@ -602,6 +602,8 @@ G.I18n.add({
   '¡{x} desbloqueado!': '{x} unlocked!',
   'Familia de {x}: {x} estrellas': '{x} family: {x} stars',
   'Movimientos que aprende (los apagados, con más nivel de familia)': 'Moves it learns (the dim ones need a higher family level)',
+  'Básico': 'Basic',
+  'Mientras sepa menos de 4 ataques, los básicos de su tipo completan la lista.': 'While it knows fewer than 4 attacks, basic moves of its type fill the list.',
   'Necesita su familia a nivel {x}': 'Its family must reach level {x}',
   'También se desbloquea con fragmentos en Mejoras cuando su familia llega al nivel {x}.': 'It can also be unlocked with shards in Upgrades once its family reaches level {x}.',
   '+{x} de experiencia': '+{x} experience',

@@ -210,7 +210,7 @@ G.MenuUI = (() => {
         <p style="font-size:14px;margin:10px 0 4px"><span>Familia de ${F.famName(F.famOf(dex))}</span> · <b class="gold">Nv. ${fm.lv}</b></p>
         <p style="font-size:14px;margin:4px 0">Empieza con <b class="gold">${F.startMoves(s, dex).map(id => G.Moves.BY_ID[id].name).join(' + ')}</b></p>
         <p class="move-icons" title="Movimientos que aprende (los apagados, con más nivel de familia)">
-          ${F.movesOf(dex).map(e => `<span class="${e[1] <= fm.lv ? '' : 'dim'}" title="${G.Moves.BY_ID[e[0]].name} · Nv. ${e[1]}">${G.Icons.html('move:' + e[0], 16)}</span>`).join('')}</p>
+          ${F.shown(s, dex).map(e => `<span class="${e[1] <= fm.lv ? '' : 'dim'}" title="${G.Moves.BY_ID[e[0]].name} · ${e[2] === 'basic' ? 'Básico' : 'Nv. ' + e[1]}">${G.Icons.html('move:' + e[0], 16)}</span>`).join('')}</p>
         ${usingThis
           ? '<button class="btn grow" disabled style="width:100%">Es tu compañero</button>'
           : ok ? `<button id="dex-pick" class="btn gold" data-sfx="confirm" style="width:100%">Elegir de compañero${viewShiny ? ' (shiny)' : ''}</button>`
@@ -359,8 +359,9 @@ G.MenuUI = (() => {
     }
     // movimientos de esta forma, con el nivel de familia que los desbloquea
     el.querySelector('.fam-moves').innerHTML = `<p class="sub" style="margin:8px 0 4px">Movimientos de ${G.DEX_BY[dex].name}</p>
-      <div class="ban-moves">${F.movesOf(dex).map(e => `<span class="chip${e[1] <= fm.lv ? ' on' : ' dim'}">${
-        G.Icons.html('move:' + e[0], 14)} ${G.Moves.BY_ID[e[0]].name} <small>Nv. ${e[1]}</small></span>`).join('')}</div>`;
+      <div class="ban-moves">${F.shown(s, dex).map(e => `<span class="chip${e[1] <= fm.lv ? ' on' : ' dim'}">${
+        G.Icons.html('move:' + e[0], 14)} ${G.Moves.BY_ID[e[0]].name} <small>${e[2] === 'basic' ? 'Básico' : 'Nv. ' + e[1]}</small></span>`).join('')}</div>
+      ${F.shown(s, dex)[0][2] === 'basic' ? '<p class="sub" style="margin:4px 0 0">Mientras sepa menos de 4 ataques, los básicos de su tipo completan la lista.</p>' : ''}`;
 
     el.querySelectorAll('[data-pick]').forEach(btn => {
       btn.onclick = () => {
@@ -401,7 +402,7 @@ G.MenuUI = (() => {
     const s = G.DB.save;
     s.pbind = s.pbind || {};
     const list = s.pbind[dex] || [null, null, null, null];
-    const ids = G.Families.movesOf(dex).map(e => e[0])
+    const ids = G.Families.shown(s, dex).map(e => e[0])
       .sort((a, b) => G.Moves.BY_ID[a].name.localeCompare(G.Moves.BY_ID[b].name, 'es'));
     const el = document.createElement('div');
     el.className = 'panel bind-panel';

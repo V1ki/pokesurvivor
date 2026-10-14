@@ -36,6 +36,10 @@ const DEFAULTS := {
 	"star_atk": 0.05,           # per star: x damage, x max HP
 	"star_hp": 0.05,
 	"refund": false,            # duplicates still refund coins too (the current game's coins)
+	"min_known": 0,             # the first N moves of the learnset are known from family level 1
+	"pool": "learnset",         # learnset: cards offer only learned moves · hybrid: + its type pool
+	"stab_start": true,         # start with the first learned attack of its own type, if any
+	"min_attacks": 4,           # knowing fewer attacks, its type's basic moves fill the list
 }
 
 static var R: Dictionary = DEFAULTS.duplicate(true)
@@ -141,11 +145,48 @@ static func usable_list(acc: Dictionary) -> Array:
 ## Moves this form can use: [id, family level that unlocks it], first learned first. Forms it
 ## evolved from count (an evolved Pokémon keeps its moves); "fill" (rule A) from level 1.
 static func moves_of(acc: Dictionary, dex: int) -> Array:
-	_data()
 	var lv := int(fam(acc, fam_of(dex))["lv"])
+	var all := all_moves(dex)
+	var out: Array = []
+	for i in all.size():
+		if int(all[i][1]) <= lv or i < int(R["min_known"]):
+			# [id, level it is known from, position in the learnset] (the first min_known from level 1)
+			out.append([all[i][0], 1 if i < int(R["min_known"]) else int(all[i][1]), i])
+	out.sort_custom(func(a, b): return a[1] < b[1] or (a[1] == b[1] and a[2] < b[2]))
+	# fewer than min_attacks attacks: its type's basic moves fill the list (they make way for its own)
+	var n := out.filter(func(e): return Moves.def(e[0]).get("kind", "") != "buff").size()
+	var ids: Array = out.map(func(e): return e[0])
+	for id in basics(dex):
+		if n >= int(R["min_attacks"]):
+			break
+		if not ids.has(id):
+			out.append([id, 1, 1000 + n, "basic"])
+			n += 1
+	return out
+
+## Basic moves of its type to fill a short list (G.Families.basics): the start move of each of its
+## types (Ember, Vine Whip...), then the rest of its types' pools, then the normal ones.
+static func basics(dex: int) -> Array:
+	var mon: Dictionary = Data.dex_by[dex]
+	var out: Array = []
+	var add := func(id: String) -> void:
+		if Data.move_by.has(id) and Moves.def(id).get("kind", "") != "buff" and not out.has(id):
+			out.append(id)
+	for t in mon["types"]:
+		add.call(str(Data.start_by_type.get(t, "")))
+	for t in mon["types"]:
+		for id in Data.pool_by_type.get(t, []):
+			add.call(str(id))
+	for id in Data.pool_by_type.get("normal", []):
+		add.call(str(id))
+	return out
+
+## Every move of this form's learnset with its unlock level (see moves_of), first learned first.
+static func all_moves(dex: int) -> Array:
+	_data()
 	var at := {}
 	var add := func(id: String, l: int) -> void:
-		if Data.move_by.has(id) and l <= lv and (not at.has(id) or l < int(at[id])):
+		if Data.move_by.has(id) and (not at.has(id) or l < int(at[id])):
 			at[id] = l
 	var ch := chain(dex)
 	for i in ch.size():
@@ -169,13 +210,29 @@ static func moves_of(acc: Dictionary, dex: int) -> Array:
 	out.sort_custom(func(a, b): return a[1] < b[1] or (a[1] == b[1] and str(a[0]) < str(b[0])))
 	return out
 
-## Moves a run starts with: the first damaging one learned (2 from moves2_lv).
+## The moves the level-up cards may offer: the learned ones (+ its type pool with R.pool "hybrid").
+static func pool_of(dex: int, moves: Array) -> Array:
+	var ids: Array = moves.map(func(e): return e[0])
+	if R["pool"] == "hybrid":
+		for id in Moves.pool_for(Data.dex_by[dex]):
+			if not ids.has(id):
+				ids.append(id)
+	return ids
+
+## Moves a run starts with: the first damaging one learned (2 from moves2_lv); with R.stab_start
+## the first one of its own type comes first (its type's move if it learned none yet, hybrid).
 static func start_moves(acc: Dictionary, dex: int, moves: Array) -> Array:
 	var n := 2 if int(fam(acc, fam_of(dex))["lv"]) >= int(R["moves2_lv"]) else 1
-	var out: Array = []
-	for e in moves:
-		if out.size() < n and Moves.def(e[0]).get("kind", "") != "buff":
-			out.append(e[0])
+	var atk: Array = moves.filter(func(e): return Moves.def(e[0]).get("kind", "") != "buff").map(func(e): return e[0])
+	if R["stab_start"]:
+		var types: Array = Data.dex_by[dex]["types"]
+		var own: Array = atk.filter(func(id): return types.has(Moves.def(id).get("type", "")))
+		if own.is_empty() and R["pool"] == "hybrid":
+			own = [Moves.start_move_of(dex)]
+		if not own.is_empty():
+			atk.erase(own[0])
+			atk.push_front(own[0])
+	var out: Array = atk.slice(0, n)
 	if out.is_empty():
 		out.append(Moves.start_move_of(dex))
 	return out

@@ -83,7 +83,8 @@ Menú principal  (el mundo de fondo, con Pokémon salvajes paseando)
   aura, potenciador, bumerán, cadena, minas, meteoros, torreta, embestida, rastro y
   abanico corto), 5 niveles cada uno. Cubren los **18 tipos**.
 - Los movimientos de cada Pokémon son los de los juegos (`js/data/learnsets.js`): los aprende al
-  subir el nivel de su familia (ver 7.2) y las cartas sólo ofrecen los que ya sabe.
+  subir el nivel de su familia (ver 7.2) y las cartas sólo ofrecen los que ya sabe (si sabe
+  menos de 4 ataques, más los básicos de su tipo).
 - Los potenciadores no hacen daño: entras, acumulas y vuelves a uno de ataque.
   Nunca se ofrecen más de 2.
 - Al subir de nivel: **1 de 3 cartas**.
@@ -230,8 +231,10 @@ Las monedas sirven para las **mejoras del entrenador**; el gacha va con tickets.
   Crítico 10); desde el nivel 20 la partida empieza con 2 movimientos (antes Repertorio).
 - **Movimientos**: los de los juegos (los del último juego principal y los que se quitaron,
   con su nivel; los que aquí son la evolución de otro cuentan como ese: Derribo = Placaje).
-  La partida empieza con el primer ataque que sabe; si no sabe ninguno al nivel 1, con el de
-  su tipo. Las listas cortas se completan con sus MT hasta 4.
+  La partida empieza con el primer ataque de su tipo que sabe (si no, el primero que sabe). Las
+  listas cortas se completan con sus MT hasta 4. Mientras sepa menos de 4 ataques, los
+  **básicos de su tipo** completan la lista (el de inicio de cada tipo suyo: Ascuas, Látigo
+  Cepa...; luego los demás de sus tipos y los normales) y dejan sitio a los suyos al aprenderlos.
 - **Evolución**: una forma se puede usar cuando la familia llega a su nivel de evolución (el
   de los juegos; si allí evoluciona con un objeto, intercambio o amistad, uno estimado por
   sus stats base) y la tienes: sacada en el gacha o desbloqueada con **fragmentos**
@@ -548,3 +551,7 @@ guitarra punteada, bajo, pad, lead y batería, con reverb). Cero ficheros.
   Impresionar, Golpe Bajo, Destructor, Carantoña, Arañazo, Cuchillada, Golpes Furia, Finta).
 - Números iniciales de `G.Families.R` (los mismos que `godot/debug/family_rules.gd`); se
   ajustan con el simulador (`godot/tests/sim_play.gd --campaign --rules=family`).
+- Con sólo los movimientos de su lista, muchos Pokémon empezaban con 1 o 2 y se hacía corto:
+  se completan hasta 4 ataques con los básicos de su tipo y se empieza con uno de su tipo. En el
+  simulador los bots aguantan algo menos que con su lista sola (reparten las cartas entre más
+  movimientos) y algo más que con el repertorio de tipo de antes.

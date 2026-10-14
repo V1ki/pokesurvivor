@@ -35,7 +35,11 @@ G.Families = (() => {
     uniRate: 2,                      // universales por fragmento de una familia
     unlock: [10, 20, 40, 60, 100],   // fragmentos para desbloquear una forma de rareza 1..5
     stars: 5, starCost: 30,          // estrellas de una familia completa y su precio
-    starAtk: 0.05, starHp: 0.05      // por estrella: ×daño y ×vida
+    starAtk: 0.05, starHp: 0.05,     // por estrella: ×daño y ×vida
+    minKnown: 0,             // los N primeros movimientos de su lista se saben desde el nivel 1
+    pool: 'learnset',        // 'learnset': las cartas sólo dan los que sabe · 'hybrid': + los de su tipo
+    stabStart: true,         // empieza con el primer ataque de su tipo que sepa (si sabe alguno)
+    minAttacks: 4            // si sabe menos ataques, se completa con los básicos de su tipo
   };
 
   // ---------------- familias (data/evolutions.js) ----------------
@@ -111,16 +115,63 @@ G.Families = (() => {
     // Sin ningún ataque al nivel 1 (su primer movimiento no está en el juego: Malicioso,
     // Constricción...), empieza con el de su tipo, como antes.
     if (![...at.values()].some(e => e[1] <= 1 && G.Moves.BY_ID[e[0]].kind !== 'buff')) add(G.startMoveOf(dex), 1);
-    return [...at.values()].sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]));
+    const byLv = (a, b) => a[1] - b[1] || a[0].localeCompare(b[0]);
+    // R.minKnown: los primeros de la lista se saben ya al nivel 1 (en el orden en que los aprendía)
+    return [...at.values()].sort(byLv).map((e, i) => (i < R.minKnown ? [e[0], 1, e[2]] : e)).sort((a, b) => a[1] - b[1]);
   }
 
-  /** Los que ya sabe con el nivel actual de su familia. */
-  const known = (save, dex) => movesOf(dex).filter(e => e[1] <= famOfDex(save, dex).lv);
+  /**
+   * Ataques básicos de su tipo para completar una lista corta: el de inicio de cada tipo suyo
+   * (Ascuas, Látigo Cepa...), luego los demás de sus tipos y por último los normales.
+   */
+  function basics(dex) {
+    const mon = G.DEX_BY[dex], out = [];
+    const add = id => { if (G.Moves.BY_ID[id] && G.Moves.BY_ID[id].kind !== 'buff' && !out.includes(id)) out.push(id); };
+    for (const t of mon.types) add(G.Moves.START[t]);
+    for (const t of mon.types) for (const id of G.Moves.POOL[t] || []) add(id);
+    for (const id of G.Moves.POOL.normal || []) add(id);
+    return out;
+  }
 
-  /** Con qué empieza la partida: el primer ataque que sabe (2 desde R.moves2Lv). */
+  /** Los que ya sabe con el nivel actual de su familia; si son menos de R.minAttacks ataques,
+   *  se completan con los básicos de su tipo (marcados 'basic'), que dejan paso a los suyos. */
+  function known(save, dex) {
+    const list = movesOf(dex).filter(e => e[1] <= famOfDex(save, dex).lv);
+    let atk = list.filter(e => G.Moves.BY_ID[e[0]].kind !== 'buff').length;
+    for (const id of basics(dex)) {
+      if (atk >= R.minAttacks) break;
+      if (list.some(e => e[0] === id)) continue;
+      list.push([id, 1, 'basic']);
+      atk++;
+    }
+    return list;
+  }
+
+  /** Para enseñarlos: su lista y, delante, los básicos que la completan ahora (sin repetirlos). */
+  function shown(save, dex) {
+    const basic = known(save, dex).filter(e => e[2] === 'basic');
+    return basic.concat(movesOf(dex).filter(e => !basic.some(b => b[0] === e[0])));
+  }
+
+  /** Lo que pueden ofrecer las cartas: los que sabe (con R.pool 'hybrid', también los de su tipo). */
+  function poolOf(dex, list) {
+    const ids = list.map(e => e[0]);
+    if (R.pool === 'hybrid') for (const id of G.Moves.poolFor(G.DEX_BY[dex])) if (!ids.includes(id)) ids.push(id);
+    return ids;
+  }
+
+  /** Con qué empieza la partida: el primer ataque que sabe (2 desde R.moves2Lv); con
+   *  R.stabStart, primero el de su tipo (en 'hybrid', el de su tipo de siempre si aún no sabe). */
   function startMoves(save, dex, list = known(save, dex)) {
     const n = famOfDex(save, dex).lv >= R.moves2Lv ? 2 : 1;
-    const out = list.filter(e => G.Moves.BY_ID[e[0]].kind !== 'buff').slice(0, n).map(e => e[0]);
+    const atk = list.filter(e => G.Moves.BY_ID[e[0]].kind !== 'buff').map(e => e[0]);
+    if (R.stabStart) {
+      const types = G.DEX_BY[dex].types;
+      let own = atk.find(id => types.includes(G.Moves.BY_ID[id].type));
+      if (!own && R.pool === 'hybrid') own = G.startMoveOf(dex);
+      if (own) { const i = atk.indexOf(own); if (i >= 0) atk.splice(i, 1); atk.unshift(own); }
+    }
+    const out = atk.slice(0, n);
     return out.length ? out : [G.startMoveOf(dex)];
   }
 
@@ -248,6 +299,6 @@ G.Families = (() => {
   }
 
   return { R, famOf, members, stage, reqLevel, chain, isFinal, famName, fam, legacy, usable, movesOf, known,
-           startMoves, perks, levelBonus, xpNeed, gainXp, afterPull, shardsFor, unlockCost, canUnlock,
+           basics, shown, poolOf, startMoves, perks, levelBonus, xpNeed, gainXp, afterPull, shardsFor, unlockCost, canUnlock,
            unlock, complete, canStar, star, migrate };
 })();

@@ -119,7 +119,7 @@ G.Game = (() => {
     // Movimientos de su familia al nivel que tiene: empieza con el primer ataque que aprende
     // (con dos desde el nivel 20) y las cartas sólo ofrecen los que ya sabe.
     const known = G.Families.known(save, mon.dex);
-    pl.movePool = known.map(e => e[0]);
+    pl.movePool = G.Families.poolOf(mon.dex, known);
     for (const id of G.Families.startMoves(save, mon.dex, known)) pl.addMove(id);
     pl.setActive(0);
 
