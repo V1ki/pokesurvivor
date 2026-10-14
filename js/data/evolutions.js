@@ -9,7 +9,7 @@
  *         extra como time_of_day o held_item.
  *         est: si en los juegos no es por nivel, el nivel que le toca en este juego según
  *         sus stats base (mediana de las evoluciones por nivel con un total parecido, ±25;
- *         nunca por debajo de la etapa anterior). Todavía no lo usa el juego.
+ *         nunca por debajo de la etapa anterior). Lo usa js/systems/families.js.
  */
 G.EVO = {
   1: {"f":1,"s":0},

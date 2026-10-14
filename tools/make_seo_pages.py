@@ -192,7 +192,7 @@ navegador: eliges un compañero, te mueves por un mapa infinito y tus ataques sa
 </ul>
 <h2>Características</h2>
 <ul class="feat">
-<li><b>{N} Pokémon de las 9 regiones</b> (<a href="{lk('pokedex')}">ver la Pokédex</a>), cada uno con sus ataques y sus propias mejoras permanentes.</li>
+<li><b>{N} Pokémon de las 9 regiones</b> (<a href="{lk('pokedex')}">ver la Pokédex</a>), cada uno con los movimientos que aprende en los juegos. Cada familia sube de nivel jugando con ella y evoluciona como en los juegos.</li>
 <li><b>Los movimientos evolucionan</b>: al nivel máximo y con la mejora adecuada, Ascuas se convierte en Llamarada, Burbuja en Surf…</li>
 <li><b>Enemigos con personalidad</b>: hay Pokémon que curan, ponen escudos, invocan ayuda, explotan o disparan rayos avisando en el suelo.</li>
 <li><b>Jefes</b> y <a href="{lk('legends')}"><b>grietas</b> con 18 arenas legendarias</a>, una por tipo.</li>
@@ -210,7 +210,7 @@ navegador: eliges un compañero, te mueves por un mapa infinito y tus ataques sa
 <li>Aprovecha la tabla de tipos: cambia al ataque que sea muy eficaz contra lo que tienes delante.</li>
 <li>Los avisos en el suelo (círculos y rayas que se llenan) son ataques a punto de caer: sal de ellos.</li>
 <li>Elimina primero a los Pokémon que curan o ponen escudos.</li>
-<li>Gasta tus monedas en las mejoras de tu compañero favorito.</li>
+<li>Gasta tus monedas en las mejoras del entrenador: valen para todos tus Pokémon.</li>
 </ol>
 <h2>Preguntas frecuentes</h2>
 {''.join(f'<h3>{esc(q)}</h3><p>{esc(a)}</p>' for q, a in FAQ[lang])}
@@ -234,7 +234,7 @@ How long can you last?</p>
 </ul>
 <h2>Features</h2>
 <ul class="feat">
-<li><b>{N} Pokémon from all 9 regions</b> (<a href="{lk('pokedex')}">see the Pokédex</a>), each with its own moves and permanent upgrades.</li>
+<li><b>{N} Pokémon from all 9 regions</b> (<a href="{lk('pokedex')}">see the Pokédex</a>), each with the moves it learns in the games. Each family levels up as you play with it and evolves like in the games.</li>
 <li><b>Moves evolve</b>: at max level with the right upgrade, Ember becomes Fire Blast, Bubble becomes Surf…</li>
 <li><b>Enemies with personality</b>: some Pokémon heal, shield their allies, summon help, explode or fire telegraphed beams.</li>
 <li><b>Bosses</b> and <a href="{lk('legends')}"><b>rifts</b> with 18 legendary arenas</a>, one per type.</li>
@@ -252,7 +252,7 @@ How long can you last?</p>
 <li>Use the type chart: switch to the move that's super effective against what's in front of you.</li>
 <li>Markers on the ground (circles and lines filling up) are attacks about to land: step out of them.</li>
 <li>Take out healers and shield-casters first.</li>
-<li>Spend your coins on upgrades for your favorite partner.</li>
+<li>Spend your coins on trainer upgrades: they work for all your Pokémon.</li>
 </ol>
 <h2>Frequently asked questions</h2>
 {''.join(f'<h3>{esc(q)}</h3><p>{esc(a)}</p>' for q, a in FAQ[lang])}

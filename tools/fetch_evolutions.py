@@ -14,7 +14,7 @@ volver a ejecutarlo no toca internet salvo lo que falte. Al final imprime un
 informe: familias, formas de evolucionar y cuántos movimientos del juego tiene
 cada Pokémon (y qué movimientos de los juegos faltan para los que tienen pocos).
 
-Son datos de los juegos, sin decisiones de diseño: todavía no los usa el juego.
+Son datos de los juegos; las reglas que los usan están en js/systems/families.js.
 """
 import io
 import json
@@ -31,6 +31,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CACHE = os.path.join(ROOT, 'tools', 'cache', 'pokeapi')
 OUT_EVO = os.path.join(ROOT, 'js', 'data', 'evolutions.js')
 OUT_LEARN = os.path.join(ROOT, 'js', 'data', 'learnsets.js')
+FULL_LEARN = os.path.join(ROOT, 'tools', 'cache', 'learnsets_full.json')   # con tm / egg, para análisis
 
 # Grupos de versiones que no sirven de referencia para los movimientos por nivel
 # (sistemas de movimientos distintos o listas recortadas).
@@ -381,7 +382,7 @@ def main():
         '        extra como time_of_day o held_item.',
         '        est: si en los juegos no es por nivel, el nivel que le toca en este juego según',
         '        sus stats base (mediana de las evoluciones por nivel con un total parecido, ±25;',
-        '        nunca por debajo de la etapa anterior). Todavía no lo usa el juego.',
+        '        nunca por debajo de la etapa anterior). Lo usa js/systems/families.js.',
     ], 'G.EVO', evo)
 
     # --- movimientos ---
@@ -399,6 +400,10 @@ def main():
             continue
         missing_by[d] = ls.pop('missing')
         learn[str(d)] = {k: v for k, v in ls.items() if v}
+    # El juego sólo usa lv / old / evo / fill: tm y egg (largos) van aparte, a la caché.
+    with io.open(FULL_LEARN, 'w', encoding='utf-8') as f:
+        json.dump(learn, f, ensure_ascii=False, separators=(',', ':'))
+    shipped = {d: {k: v for k, v in l.items() if k in ('lv', 'old', 'evo', 'fill')} for d, l in learn.items()}
     write_js(OUT_LEARN, [
         'Lo produce tools/fetch_evolutions.py con los movimientos de PokeAPI.',
         'Sólo los movimientos que ya existen en el juego (js/data/moves.js).',
@@ -409,10 +414,10 @@ def main():
         '  evo  los aprende al evolucionar a esta forma (nivel 0 en los juegos)',
         '  old  [movimiento, nivel] que aprendía por nivel en juegos anteriores y en el de',
         '       referencia ya no (p. ej. Golpe Kárate, que se quitó en la 8.ª generación)',
-        '  tm   por MT o tutor en cualquier juego · egg  sólo como movimiento huevo',
-        '  fill regla A: los de tm / egg con los que se completa hasta 4 movimientos (2 de daño)',
-        'Todavía no lo usa el juego.',
-    ], 'G.LEARNSETS', learn)
+        '  fill regla A: con los que aprende por MT, tutor o huevo se completa hasta 4',
+        '       movimientos (2 que hagan daño). Las listas completas de MT / huevo y el juego de',
+        '       referencia de cada uno están en tools/cache/learnsets_full.json.',
+    ], 'G.LEARNSETS', shipped)
     print(f'\nEscritos {len(evo)} Pokémon en js/data/evolutions.js y {len(learn)} en js/data/learnsets.js')
 
     report(dex, evo, learn, missing_by, game, fit, minfo, alias)

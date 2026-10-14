@@ -79,8 +79,7 @@ G.AchDefs = (() => {
   for (const a of LIST) if (a.id === 'legAll') { a.goal = totalLegends; a.desc = `Vence a los ${totalLegends} legendarios.`; }
   // Metas que dependen de los datos del juego.
   for (const a of LIST) if (a.id === 'ownAll') { a.goal = G.DEX.length; a.desc = `Ten los ${G.DEX.length} Pokémon del juego.`; }
-  // (sólo los que ya pueden salir: los `learn` todavía no se consiguen, ver data/moves.js)
-  const evoTotal = Object.keys(G.Moves.EVO).filter(id => !G.Moves.BY_ID[id].learn).length;
+  const evoTotal = Object.keys(G.Moves.EVO).length;
   for (const a of LIST) if (a.id === 'evoAll') { a.goal = evoTotal; a.desc = `Evoluciona los ${evoTotal} movimientos distintos.`; }
 
   const BY = {};

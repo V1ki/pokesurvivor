@@ -852,3 +852,20 @@ a.btn { text-decoration: none; display: inline-block; color: var(--ink); }
   #dex-detail .btn { position: sticky; bottom: 0; order: 9; margin-top: auto; padding: 8px 6px; font-size: 15px;
     box-shadow: 0 -6px 10px rgba(5,10,25,.6); }
 }
+
+/* ---------- familias (systems/families.js): experiencia, formas, movimientos ---------- */
+.xpbar { height: 7px; background: rgba(0,0,0,.4); border-radius: 6px; overflow: hidden; margin: 4px 0 2px; }
+.xpbar i { display: block; height: 100%; background: var(--gold); }
+.fam-panel { grid-column: 1 / -1; }
+.fam-bonus { margin: 6px 0 2px; font-size: 14px; }
+.fam-shards { margin: 2px 0 8px; }
+.fam-forms { display: flex; flex-wrap: wrap; gap: 8px; }
+.fam-form { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 8px; min-width: 96px;
+  border-radius: 10px; background: rgba(0,0,0,.25); border: 2px solid transparent; text-align: center; }
+.fam-form.ok { border-color: rgba(255,210,63,.35); }
+.fam-form.on { border-color: var(--gold); }
+.fam-form small { color: var(--muted); font-size: 12px; }
+.fam-form.star { justify-content: center; }
+.chip.dim, .move-icons .dim { opacity: .38; }
+.upg-title { grid-column: 1 / -1; margin: 8px 0 0; }
+.upg-title .sub { margin: 2px 0 0; }

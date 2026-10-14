@@ -188,6 +188,8 @@ G.MenuUI = (() => {
     const bar = (label, v, m, txt) =>
       `<div class="stat"><span>${label}</span><div class="bar"><i style="width:${Math.min(100, v / m * 100)}%"></i></div><span>${txt}</span></div>`;
     const usingThis = isPartner && (!hasSh || !!s.partnerShiny === viewShiny);
+    // Familia: su nivel decide qué movimientos sabe y si esta forma se puede usar ya.
+    const F = G.Families, fm = F.fam(s, F.famOf(dex)), req = F.reqLevel(dex), ok = own && F.usable(s, dex);
 
     const box = $('dex-detail');
     box.innerHTML = `
@@ -205,14 +207,16 @@ G.MenuUI = (() => {
         ${bar('Vida', p.hp, max.hp, p.hp)}
         ${bar('Ataque', p.atk, max.atk, '×' + p.atk.toFixed(2))}
         ${bar('Velocidad', p.spd, max.spd, p.spd)}
-        <p style="font-size:14px;margin:10px 0 4px">Empieza con <b class="gold">${G.Moves.BY_ID[G.startMoveOf(dex)].name}</b></p>
-        <p class="move-icons" title="Movimientos que puede aprender">
-          ${G.Moves.poolFor(p).map(id => `<span title="${G.Moves.BY_ID[id].name}">${G.Icons.html('move:' + id, 16)}</span>`).join('')}</p>
+        <p style="font-size:14px;margin:10px 0 4px"><span>Familia de ${F.famName(F.famOf(dex))}</span> · <b class="gold">Nv. ${fm.lv}</b></p>
+        <p style="font-size:14px;margin:4px 0">Empieza con <b class="gold">${F.startMoves(s, dex).map(id => G.Moves.BY_ID[id].name).join(' + ')}</b></p>
+        <p class="move-icons" title="Movimientos que aprende (los apagados, con más nivel de familia)">
+          ${F.movesOf(dex).map(e => `<span class="${e[1] <= fm.lv ? '' : 'dim'}" title="${G.Moves.BY_ID[e[0]].name} · Nv. ${e[1]}">${G.Icons.html('move:' + e[0], 16)}</span>`).join('')}</p>
         ${usingThis
           ? '<button class="btn grow" disabled style="width:100%">Es tu compañero</button>'
-          : `<button id="dex-pick" class="btn gold" data-sfx="confirm" style="width:100%">Elegir de compañero${viewShiny ? ' (shiny)' : ''}</button>`}
+          : ok ? `<button id="dex-pick" class="btn gold" data-sfx="confirm" style="width:100%">Elegir de compañero${viewShiny ? ' (shiny)' : ''}</button>`
+          : `<button class="btn grow" disabled style="width:100%">Necesita su familia a nivel ${req}</button>`}
       ` : `<p class="center" style="color:var(--muted)">Aún no lo tienes.<br>Consíguelo en el banner de <b class="gold">${GEN_NAMES[p.gen - 1]}</b>
-            o derrotándolo cuando salga shiny.</p>`}
+            o derrotándolo cuando salga shiny.${req > 1 ? `<br>También se desbloquea con fragmentos en Mejoras cuando su familia llega al nivel ${req}.` : ''}</p>`}
     `;
     $('dex-big').style.setProperty('--stage-c', !own ? '#5b83d6' : viewShiny ? '#9ae6ff' : G.U.TYPE_COLOR[p.types[0]]);
     $('dex-big').classList.toggle('shiny', own && viewShiny);
@@ -222,6 +226,7 @@ G.MenuUI = (() => {
     });
     const pick = $('dex-pick');
     if (pick) pick.onclick = () => {
+      if (!G.Families.usable(s, dex)) return;
       s.partner = dex;
       s.partnerShiny = hasSh && viewShiny;
       G.DB.commit();
@@ -230,36 +235,50 @@ G.MenuUI = (() => {
     };
   }
 
-  // ---------------- mejoras ----------------
+  // ---------------- mejoras: familia y entrenador (systems/families.js) ----------------
 
-  let upgDex = null;
+  let upgFam = null;      // familia que se está viendo
+
+  /** La forma que representa a una familia: tu compañero si es de ella; si no, la más
+   *  evolucionada que puedes usar (o la primera que tengas). */
+  function famForm(f) {
+    const s = G.DB.save, F = G.Families;
+    if (F.famOf(s.partner) === f) return s.partner;
+    const m = F.members(f).filter(d => G.DEX_BY[d]);
+    const ok = m.filter(d => F.usable(s, d)).sort((a, b) => F.stage(b) - F.stage(a));
+    return ok[0] || m.filter(d => s.owned[d])[0] || m[0];
+  }
 
   function openUpgrades() {
     G.UI.show('scr-upgrades', true);
-    const s = G.DB.save;
-    if (!upgDex || !s.owned[upgDex]) upgDex = s.partner;
-    // Selector con tus Pokémon: el compañero primero, luego los que ya tienen mejoras.
+    const s = G.DB.save, F = G.Families;
+    const mine = F.famOf(s.partner);
+    const fams = [...new Set(Object.keys(s.owned).map(Number).filter(d => G.DEX_BY[d]).map(F.famOf))];
+    if (upgFam == null || !fams.includes(upgFam)) upgFam = mine;
+    const lv = f => F.fam(s, f).lv;
+    fams.sort((a, b) => (b === mine) - (a === mine) || lv(b) - lv(a) || F.famName(a).localeCompare(F.famName(b), 'es'));
     const sel = $('upg-mon');
-    const lv = d => Object.values(s.pupg[d] || {}).reduce((a, b) => a + b, 0);
-    const mons = Object.keys(s.owned).map(Number).filter(d => G.DEX_BY[d])
-      .sort((a, b) => (b === s.partner) - (a === s.partner) || lv(b) - lv(a) || a - b);
-    sel.innerHTML = mons.map(d => `<option value="${d}">${G.DEX_BY[d].name}${d === s.partner ? ' (compañero)' : ''}${lv(d) ? ' · ' + lv(d) + ' niveles' : ''}</option>`).join('');
-    sel.value = upgDex;
-    sel.onchange = () => { upgDex = +sel.value; G.Audio.sfx('select'); renderUpgrades(); };
+    sel.innerHTML = fams.map(f => `<option value="${f}">${F.famName(f)} · Nv. ${lv(f)}${f === mine ? ' (compañero)' : ''}</option>`).join('');
+    sel.value = upgFam;
+    sel.onchange = () => { upgFam = +sel.value; G.Audio.sfx('select'); renderUpgrades(); };
     renderUpgrades();
   }
 
   function renderUpgrades() {
-    const s = G.DB.save;
-    const levels = G.DB.upgradesOf(upgDex);
-    const mon = G.DEX_BY[upgDex];
-    const shiny = upgDex === s.partner && !!s.partnerShiny && G.DB.ownsShiny(upgDex);
-    G.UI.sprite($('upg-stage'), upgDex, { lively: true, scale: 2, hero: true, shiny });
+    const s = G.DB.save, F = G.Families;
+    const dex = famForm(upgFam);
+    const mon = G.DEX_BY[dex];
+    const shiny = dex === s.partner && !!s.partnerShiny && G.DB.ownsShiny(dex);
+    G.UI.sprite($('upg-stage'), dex, { lively: true, scale: 2, hero: true, shiny });
     $('upg-stage').style.setProperty('--stage-c', shiny ? '#9ae6ff' : G.U.TYPE_COLOR[mon.types[0]]);
     const box = $('upg-list');
     box.innerHTML = '';
+    box.appendChild(famPanel(upgFam, dex));
+    box.insertAdjacentHTML('beforeend', `<div class="upg-title"><b>Entrenador</b>
+      <p class="sub">Se compran con Pokémonedas y valen para todos tus Pokémon.</p></div>`);
     for (const u of G.Upgrades.LIST) {
-      const lvl = levels[u.id] || 0;
+      if (!F.R.trainer.includes(u.id)) continue;
+      const lvl = (s.trainer || {})[u.id] || 0;
       const maxed = lvl >= u.max;
       const cost = maxed ? 0 : G.Upgrades.cost(u.id, lvl);
       const el = document.createElement('div');
@@ -271,38 +290,118 @@ G.MenuUI = (() => {
           <div class="pips">${Array.from({ length: u.max }, (_, i) => `<i class="${i < lvl ? 'on' : ''}"></i>`).join('')}</div>
         </div>
         <div class="upg-btns">
-          ${u.id === 'ban' && lvl > 0 ? `<button class="btn small" data-ban>Elegir (${banList().length}/${lvl})</button>` : ''}
           <button class="btn small ${maxed ? '' : 'gold'}" data-buy data-sfx="none" ${maxed || s.coins < cost ? 'disabled' : ''}>
           ${maxed ? 'Máx.' : `<span class="coin"></span> ${cost}`}</button></div>`;
-      if (u.id === 'ban' && lvl > 0) el.querySelector('[data-ban]').onclick = () => { banOpen = !banOpen; renderUpgrades(); };
       el.querySelector('[data-buy]').onclick = () => {
         // Se vuelve a leer todo al pulsar (la partida puede haber cambiado desde que se dibujó).
-        const sv = G.DB.save, lv = G.DB.upgradesOf(upgDex), now = lv[u.id] || 0;
+        const sv = G.DB.save;
+        sv.trainer = sv.trainer || {};
+        const now = sv.trainer[u.id] || 0;
         if (now >= u.max) { renderUpgrades(); return; }
         const price = G.Upgrades.cost(u.id, now);
         if (sv.coins < price) { renderUpgrades(); return; }
         sv.coins -= price;
-        lv[u.id] = now + 1;
+        sv.trainer[u.id] = now + 1;
         G.DB.commit(true);
         G.Audio.sfx('buy');
         G.UI.refreshCoins();
-        G.UI.toast(`${mon.name} · ${u.name}: nivel ${now + 1}`);
+        G.UI.toast(`Entrenador · ${u.name}: nivel ${now + 1}`);
         renderUpgrades();
       };
       box.appendChild(el);
-      if (u.id === 'ban' && lvl > 0 && banOpen) box.appendChild(banPicker(lvl));
     }
-    box.appendChild(bindPanel());
+    box.appendChild(bindPanel(dex));
+  }
+
+  /** Nivel, experiencia, lo que da, fragmentos, formas (elegir / desbloquear) y movimientos. */
+  function famPanel(f, dex) {
+    const s = G.DB.save, F = G.Families, fm = F.fam(s, f), b = F.levelBonus(fm.lv);
+    const need = F.xpNeed(fm.lv);
+    const el = document.createElement('div');
+    el.className = 'panel fam-panel';
+    el.innerHTML = `
+      <div class="row between"><b>Familia de ${F.famName(f)}</b><b class="gold">Nv. ${fm.lv} / ${F.R.cap}</b></div>
+      ${fm.lv < F.R.cap ? `<div class="xpbar"><i style="width:${Math.min(100, fm.xp / need * 100).toFixed(1)}%"></i></div>
+        <p class="sub" style="margin:0">Faltan ${Math.ceil(need - fm.xp)} de experiencia para el siguiente nivel.</p>
+        <p class="sub" style="margin:0">Sube jugando con cualquier Pokémon de la familia.</p>` : ''}
+      <p class="fam-bonus"><span>+${b.atk}% de daño</span> · <span>−${b.cd}% de recarga</span> ·
+        <span>+${b.crit}% de críticos</span> · <span>${b.two ? 'Empieza con 2 movimientos'
+          : `Empieza con 2 movimientos desde el nivel ${F.R.moves2Lv}`}</span>${fm.stars
+          ? ` · <span>${fm.stars} estrellas: +${Math.round(fm.stars * F.R.starAtk * 100)}% de daño y de vida</span>` : ''}</p>
+      <p class="sub fam-shards">${G.Icons.html('star', 12)} <span>Fragmentos: ${fm.shards}</span> ·
+        <span>Universales: ${s.uni || 0}</span> <span>(${F.R.uniRate} valen 1)</span></p>
+      <div class="fam-forms"></div>
+      <div class="fam-moves"></div>`;
+    // formas de la familia: la que puedes usar se elige, la que te falta se desbloquea
+    const row = el.querySelector('.fam-forms');
+    const forms = F.members(f).filter(d => G.DEX_BY[d])
+      .sort((a, c) => F.reqLevel(a) - F.reqLevel(c) || F.stage(a) - F.stage(c) || a - c);
+    for (const d of forms) {
+      const p = G.DEX_BY[d], own = !!s.owned[d], ok = F.usable(s, d), req = F.reqLevel(d);
+      const c = document.createElement('div');
+      c.className = 'fam-form' + (ok ? ' ok' : '') + (d === s.partner ? ' on' : '');
+      c.appendChild(G.UI.spriteCanvas(d, 84, 72, { scale: 2, silhouette: !own, shadow: own }));
+      let status;
+      if (d === s.partner) status = '<small class="gold">Compañero</small>';
+      else if (ok) status = `<button class="btn small gold" data-pick="${d}">Elegir</button>`;
+      else if (own) status = `<small>Necesita nivel ${req}</small>`;
+      else if (fm.lv >= req) status = `<button class="btn small" data-unlock="${d}" ${F.canUnlock(s, d) ? '' : 'disabled'}>
+        <span>Desbloquear</span> ${G.Icons.html('star', 12)} ${F.unlockCost(d)}</button>`;
+      else status = `<small><span>Nivel ${req}</span> · ${G.Icons.html('star', 12)} ${F.unlockCost(d)}</small>`;
+      // aquí sí el nombre aunque no lo tengas: es la meta de la familia
+      c.insertAdjacentHTML('beforeend', `<b>${p.name}</b>${G.UI.stars(p.rarity, 8)}${status}`);
+      row.appendChild(c);
+    }
+    if (F.complete(s, f) && fm.stars < F.R.stars) {
+      row.insertAdjacentHTML('beforeend', `<div class="fam-form star"><b>${fm.stars} / ${F.R.stars}</b>
+        <button class="btn small gold" data-star ${F.canStar(s, f) ? '' : 'disabled'}><span>Estrella</span>
+        ${G.Icons.html('star', 12)} ${F.R.starCost}</button><small>+5% de daño y de vida</small></div>`);
+    }
+    // movimientos de esta forma, con el nivel de familia que los desbloquea
+    el.querySelector('.fam-moves').innerHTML = `<p class="sub" style="margin:8px 0 4px">Movimientos de ${G.DEX_BY[dex].name}</p>
+      <div class="ban-moves">${F.movesOf(dex).map(e => `<span class="chip${e[1] <= fm.lv ? ' on' : ' dim'}">${
+        G.Icons.html('move:' + e[0], 14)} ${G.Moves.BY_ID[e[0]].name} <small>Nv. ${e[1]}</small></span>`).join('')}</div>`;
+
+    el.querySelectorAll('[data-pick]').forEach(btn => {
+      btn.onclick = () => {
+        const d = +btn.dataset.pick;
+        if (!F.usable(G.DB.save, d)) return;
+        G.DB.save.partner = d;
+        G.DB.save.partnerShiny = false;
+        G.DB.commit();
+        G.Audio.sfx('confirm');
+        G.UI.toast(G.DEX_BY[d].name + ' es ahora tu compañero');
+        openUpgrades();
+      };
+    });
+    el.querySelectorAll('[data-unlock]').forEach(btn => {
+      btn.onclick = () => {
+        const d = +btn.dataset.unlock;
+        if (!F.unlock(G.DB.save, d)) { G.Audio.sfx('error'); return; }
+        G.DB.commit(true);
+        G.Audio.sfx('legend');
+        G.UI.toast(`¡${G.DEX_BY[d].name} desbloqueado!`);
+        renderUpgrades();
+      };
+    });
+    const st = el.querySelector('[data-star]');
+    if (st) st.onclick = () => {
+      if (!F.star(G.DB.save, f)) { G.Audio.sfx('error'); return; }
+      G.DB.commit(true);
+      G.Audio.sfx('legend');
+      G.UI.toast(`Familia de ${F.famName(f)}: ${F.fam(G.DB.save, f).stars} estrellas`);
+      renderUpgrades();
+    };
+    return el;
   }
 
   // ---------------- atajos: hueco fijo para cada movimiento ----------------
   // save.pbind[dex] = [movimiento del hueco 1, del 2, del 3, del 4] (o null).
-  function bindPanel() {
+  function bindPanel(dex) {
     const s = G.DB.save;
     s.pbind = s.pbind || {};
-    const list = s.pbind[upgDex] || [null, null, null, null];
-    const mon = G.DEX_BY[upgDex];
-    const ids = G.Moves.poolFor(mon).concat([G.startMoveOf(upgDex)]).filter((v, i, a) => a.indexOf(v) === i)
+    const list = s.pbind[dex] || [null, null, null, null];
+    const ids = G.Families.movesOf(dex).map(e => e[0])
       .sort((a, b) => G.Moves.BY_ID[a].name.localeCompare(G.Moves.BY_ID[b].name, 'es'));
     const el = document.createElement('div');
     el.className = 'panel bind-panel';
@@ -313,46 +412,13 @@ G.MenuUI = (() => {
           `<option value="${id}" ${list[i] === id ? 'selected' : ''}>${G.Moves.BY_ID[id].name}</option>`).join('')}</select></label>`).join('')}</div>`;
     el.querySelectorAll('select[data-slot]').forEach(sel => {
       sel.onchange = () => {
-        const l = (s.pbind[upgDex] || [null, null, null, null]).slice(0, 4);
+        const l = (s.pbind[dex] || [null, null, null, null]).slice(0, 4);
         while (l.length < 4) l.push(null);
         const i = +sel.dataset.slot, id = sel.value || null;
         // Un movimiento sólo puede estar en un hueco.
         for (let j = 0; j < 4; j++) if (id && l[j] === id) l[j] = null;
         l[i] = id;
-        s.pbind[upgDex] = l;
-        G.DB.commit();
-        G.Audio.sfx('select');
-        renderUpgrades();
-      };
-    });
-    return el;
-  }
-
-  // ---------------- veto: movimientos bloqueados ----------------
-  // Lista por Pokémon en save.pban[dex]; con N niveles de Veto, N movimientos.
-  let banOpen = false;
-  function banList() {
-    const s = G.DB.save;
-    s.pban = s.pban || {};
-    return s.pban[upgDex] || (s.pban[upgDex] = []);
-  }
-  function banPicker(max) {
-    const mon = G.DEX_BY[upgDex];
-    const start = G.startMoveOf(upgDex);
-    const ids = G.Moves.poolFor(mon).filter(id => id !== start)
-      .sort((a, b) => G.Moves.BY_ID[a].name.localeCompare(G.Moves.BY_ID[b].name, 'es'));
-    const list = banList();
-    const el = document.createElement('div');
-    el.className = 'panel ban-picker';
-    el.innerHTML = `<p class="sub" style="margin:0 0 8px">Toca los movimientos que no quieres que te salgan en las cartas (${list.length}/${max}). El movimiento de inicio no se puede vetar.</p>
-      <div class="ban-moves">${ids.map(id => { const d = G.Moves.BY_ID[id]; const on = list.includes(id);
-        return `<button class="chip ${on ? 'on ban' : ''}" data-id="${id}">${G.Icons.html('move:' + id, 16)} ${d.name}${on ? ' ' + G.Icons.html('ban', 14) : ''}</button>`; }).join('')}</div>`;
-    el.querySelectorAll('[data-id]').forEach(b => {
-      b.onclick = () => {
-        const l = banList(), id = b.dataset.id, i = l.indexOf(id);
-        if (i >= 0) l.splice(i, 1);
-        else if (l.length >= max) { G.UI.toast('Ya tienes ' + max + ' vetados: quita uno primero'); return; }
-        else l.push(id);
+        s.pbind[dex] = l;
         G.DB.commit();
         G.Audio.sfx('select');
         renderUpgrades();

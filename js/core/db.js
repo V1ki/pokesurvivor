@@ -34,7 +34,7 @@ G.DB = (() => {
   const K_ACC = 'ps.accounts', K_SES = 'ps.session', K_SAVE = 'ps.save.';
   const K_CLOUD = 'ps.cloud.', K_MIGRATED = 'ps.migrated.';
   const K_GUEST = 'ps.guest', K_GUEST_SES = 'ps.guest.session';
-  const VERSION = 3;
+  const VERSION = 4;           // 4 (14-10-2026): entrenador + familias (systems/families.js)
   const START_COINS = 500;
   const SDK = 'https://www.gstatic.com/firebasejs/13.0.0/';
   const NAME_DOMAIN = 'jugadores.pokesurvivor.net';   // sólo para el email interno
@@ -74,8 +74,11 @@ G.DB = (() => {
       partnerShiny: false,    // jugar con su versión shiny (si la tienes)
       starter: null,          // dex que te tocó en el test
       personality: null,      // { trait, scores }
-      upgrades: {},           // (antiguo) mejoras de la cuenta; ahora van por Pokémon
-      pupg: {},               // dex -> { id -> nivel }: mejoras de cada Pokémon
+      upgrades: {},           // (antiguo) mejoras de la cuenta; luego fueron por Pokémon
+      pupg: {},               // (antiguo) dex -> { id -> nivel }: mejoras de cada Pokémon
+      trainer: {},            // id -> nivel: mejoras del entrenador, para todos (systems/families.js)
+      fams: {},               // familia -> { lv, xp, shards, stars }
+      uni: 0,                 // fragmentos universales
       tickets: { t1: 0, t10: 0 },   // tickets del gacha (x1 y x10)
       pity: {},               // generación del banner -> tiradas sin ★5
       legends: {},            // dex -> fecha: legendarios vencidos en grietas
@@ -86,15 +89,22 @@ G.DB = (() => {
       missions: {},           // misiones del día / semana (systems/progress.js)
       profile: { favs: [], title: '' },   // perfil público: 3 favoritos y título
       stats: { runs: 0, bestTime: 0, bestLevel: 0, totalKills: 0, pulls: 0, coinsEarned: 0, shinies: 0,
-               bossesTotal: 0, riftWins: 0, evolutions: 0, missionsDone: 0, groupRuns: 0, bestGroupTime: 0 }
+               bossesTotal: 0, riftWins: 0, evolutions: 0, missionsDone: 0, groupRuns: 0, bestGroupTime: 0,
+               // cuándo pasó a las familias: lo conseguido antes se puede usar siempre (en stats
+               // porque la fusión, también la de versiones antiguas, guarda el máximo de cada stat)
+               famAt: 1 }
     };
   }
 
   /** Rellena campos que falten en partidas de versiones anteriores. */
   function migrate(s, name) {
     const base = newSave(name || s.name);
+    // v3 -> v4 (14-10-2026): de las mejoras por Pokémon a entrenador + familias.
+    const famFirst = !(s.stats && s.stats.famAt);
     for (const k in base) if (s[k] == null) s[k] = base[k];
     for (const k in base.stats) if (s.stats[k] == null) s.stats[k] = base.stats[k];
+    if (famFirst) s.stats.famAt = Date.now();
+    if (G.Families) G.Families.migrate(s, famFirst);
     // v1 -> v2: había un único banner (Kanto) con el pity como número.
     if (typeof s.pity === 'number') s.pity = { 1: s.pity };
     // v2 -> v3: las mejoras eran de la cuenta; pasan al compañero de entonces.
@@ -151,6 +161,23 @@ G.DB = (() => {
         else u[id] = Math.min(G.Upgrades.BY[id].max, n(u[id]));
       }
     }
+    // Entrenador y familias: niveles dentro de sus topes y números positivos.
+    if (!s.trainer || typeof s.trainer !== 'object') s.trainer = {};
+    if (G.Upgrades) for (const id of Object.keys(s.trainer)) {
+      if (!G.Upgrades.BY[id]) delete s.trainer[id];
+      else s.trainer[id] = Math.min(G.Upgrades.BY[id].max, n(s.trainer[id]));
+    }
+    if (!s.fams || typeof s.fams !== 'object') s.fams = {};
+    const R = G.Families && G.Families.R;
+    for (const f of Object.keys(s.fams)) {
+      const v = s.fams[f];
+      if (!v || typeof v !== 'object') { delete s.fams[f]; continue; }
+      v.lv = Math.max(1, Math.min(R ? R.cap : 60, n(v.lv) || 1));
+      v.xp = Math.max(0, Number.isFinite(+v.xp) ? +v.xp : 0);
+      v.shards = n(v.shards);
+      v.stars = Math.min(R ? R.stars : 5, n(v.stars));
+    }
+    s.uni = n(s.uni);
   }
 
   /**
@@ -180,6 +207,17 @@ G.DB = (() => {
       for (const k in older.pupg[d]) mine[k] = Math.max(mine[k] || 0, older.pupg[d][k]);
     }
     r.pupgDone = r.pupgDone || older.pupgDone;
+    // Entrenador: el nivel más alto. Familias: el nivel (y su experiencia) y las estrellas más
+    // altos; los fragmentos se gastan como las monedas, así que mandan los de la más reciente.
+    r.trainer = r.trainer || {};
+    for (const k in older.trainer || {}) r.trainer[k] = Math.max(r.trainer[k] || 0, older.trainer[k]);
+    r.fams = r.fams || {};
+    for (const f in older.fams || {}) {
+      const o = older.fams[f], m = r.fams[f];
+      if (!m) { r.fams[f] = Object.assign({}, o); continue; }
+      if (o.lv > m.lv || (o.lv === m.lv && o.xp > m.xp)) { m.lv = o.lv; m.xp = o.xp; }
+      m.stars = Math.max(m.stars || 0, o.stars || 0);
+    }
     // Lo conseguido nunca se pierde: unión de legendarios, arenas, objetos, logros...
     for (const coll of ['legends', 'arenas', 'itemsFound', 'evoMoves', 'ach']) {
       r[coll] = r[coll] || {};

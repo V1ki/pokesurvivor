@@ -89,7 +89,8 @@ G.Game = (() => {
     holdBy = []; awayBy = null;
     const save = G.DB.save;
     const mon = G.DEX_BY[save.partner];
-    const perks = G.Upgrades.perks(G.DB.upgradesOf(mon.dex));
+    // Mejoras del entrenador + nivel y estrellas de su familia (systems/families.js).
+    const perks = G.Families.perks(save, mon.dex);
 
     G.UI.hideAll();
     G.UI.chrome(false);
@@ -115,15 +116,12 @@ G.Game = (() => {
     // Atajos: movimientos con hueco fijo (save.pbind[dex] = [id del 1, id del 2, ...]),
     // antes de aprender nada: addMove ya los coloca.
     (save.pbind && save.pbind[mon.dex] || []).forEach((id, i) => { if (id) pl.bind[id] = i; });
-    pl.addMove(G.startMoveOf(mon.dex));
-    // Mejora "Veto": movimientos que no quieres que te salgan.
-    pl.banned = new Set((save.pban && save.pban[mon.dex] || []).slice(0, perks.bans));
-    // Mejora "Repertorio": un segundo movimiento de ataque al azar.
-    if (perks.startMoves >= 2) {
-      const pool = G.Moves.poolFor(mon).filter(id => !pl.hasMove(id) && !pl.banned.has(id) && G.Moves.BY_ID[id].kind !== 'buff');
-      if (pool.length) pl.addMove(G.U.pick(pool));
-      pl.setActive(0);
-    }
+    // Movimientos de su familia al nivel que tiene: empieza con el primer ataque que aprende
+    // (con dos desde el nivel 20) y las cartas sólo ofrecen los que ya sabe.
+    const known = G.Families.known(save, mon.dex);
+    pl.movePool = known.map(e => e[0]);
+    for (const id of G.Families.startMoves(save, mon.dex, known)) pl.addMove(id);
+    pl.setActive(0);
 
     if (coop) {
       G.Coop.begin(coop, pl, coopApi);
@@ -289,6 +287,8 @@ G.Game = (() => {
     const record = time > save.stats.bestTime;
 
     save.coins += coins;
+    // Experiencia para la familia del compañero (también en grupo: cada uno la suya).
+    const fam = G.Families.gainXp(save, pl.dex, { time, kills: pl.kills, bosses: pl.bosses });
     bankTickets(false);
     save.stats.runs++;
     save.stats.totalKills += pl.kills;
@@ -308,7 +308,7 @@ G.Game = (() => {
 
     G.RunUI.showOver({
       dead, time, level: pl.level, kills: pl.kills, bosses: pl.bosses, coins, record, t1: pl.t1, t10: pl.t10,
-      moves: pl.moves, caught,
+      moves: pl.moves, caught, fam, dex: pl.dex,
       breakdown: Object.entries(parts).filter(([, v]) => v).map(([k, v]) => `${k} ${v}`).join(' · ') +
                  (mul > 1 ? ` · ×${mul.toFixed(2)} Fortuna` : '')
     }, () => { pl = null; G.Flow.afterRun(); });

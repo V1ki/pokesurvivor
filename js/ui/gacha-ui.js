@@ -61,7 +61,8 @@ G.GachaUI = (() => {
       `<div><span>${G.Icons.html('shiny', 12)} Shiny</span><span>1%</span></div>
        <p class="note">· La tirada ×10 garantiza al menos una Épica.<br>
        · A las ${G.Gacha.PITY_5} tiradas sin Legendaria en un banner, la siguiente lo es.<br>
-       · Los repetidos dan Pokémonedas. Los shiny no se repiten.<br>
+       · Los repetidos dan fragmentos: de la familia de tu compañero si son de ella, y si no,
+         fragmentos universales (2 valen 1 de cualquier familia). Los shiny no se repiten.<br>
        · Los tickets se consiguen jugando: algunos Pokémon los sueltan al caer, y
          los jefes y los legendarios de las grietas, a veces, tickets ×10.</p>`;
 
@@ -82,6 +83,8 @@ G.GachaUI = (() => {
     if (busy) return;
     const res = G.Gacha.pull(G.DB.save, n, gen, use);
     if (!res) { G.Audio.sfx('error'); G.UI.toast('No tienes tickets suficientes: consíguelos jugando'); return; }
+    // Los repetidos dan fragmentos en vez de monedas (systems/families.js).
+    G.Families.afterPull(G.DB.save, res);
     G.Progress.checkAch();
     G.DB.commit(true);
     busy = true;
@@ -107,7 +110,8 @@ G.GachaUI = (() => {
       c.appendChild(G.UI.spriteCanvas(r.dex, 132, 120, { lively: r.rarity >= 4 || r.shiny, scale: 2, shiny: r.shiny }));
       const tag = r.isNew
         ? `<span class="new">${r.shiny ? '¡SHINY NUEVO!' : '¡NUEVO!'}</span>`
-        : `Repetido · <span class="coin"></span> +${r.refund}`;
+        : r.shards ? `<span>Repetido</span> · <span>+${r.shards} fragmentos</span>`
+        : `<span>Repetido</span> · <span>+${r.uni} universales</span>`;
       c.insertAdjacentHTML('beforeend', `<b>${r.shiny ? G.Icons.html('shiny', 12) + ' ' : ''}${mon.name}</b><div class="tag">${tag}</div>`);
       out.appendChild(c);
       G.Audio.sfx('reveal', { rarity: r.rarity });

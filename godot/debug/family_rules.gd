@@ -156,6 +156,13 @@ static func moves_of(acc: Dictionary, dex: int) -> Array:
 			add.call(str(id), req_level(ch[i]))          # learned when it evolved into this form
 	for id in _learn.get(str(dex), {}).get("fill", []):
 		add.call(str(id), 1)
+	# no attack at level 1 (its first move isn't in the game: Leer, Wrap...): its type's one, as before
+	var first := false
+	for id in at:
+		if int(at[id]) <= 1 and Moves.def(id).get("kind", "") != "buff":
+			first = true
+	if not first:
+		add.call(Moves.start_move_of(dex), 1)
 	var out: Array = []
 	for id in at:
 		out.append([id, int(at[id])])

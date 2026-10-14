@@ -445,9 +445,9 @@
     <div class="upg-head">
       <canvas id="upg-stage" class="stage" width="120" height="96"></canvas>
       <div class="grow">
-        <p class="sub" style="margin:0">Cada Pokémon tiene sus propias mejoras: sólo cuentan cuando juegas con él.</p>
+        <p class="sub" style="margin:0">Las mejoras del entrenador valen para todos tus Pokémon. Cada familia sube de nivel jugando con ella.</p>
         <div class="row" style="margin-top:8px">
-          <label for="upg-mon" style="margin:0">Pokémon</label>
+          <label for="upg-mon" style="margin:0">Familia</label>
           <select id="upg-mon" class="field" style="width:auto;min-width:220px"></select>
         </div>
       </div>
@@ -560,6 +560,8 @@
 <script defer src="js/core/camera.js"></script>
 <!-- datos de juego -->
 <script defer src="js/data/moves.js"></script>
+<script defer src="js/data/evolutions.js"></script>
+<script defer src="js/data/learnsets.js"></script>
 <script defer src="js/data/types.js"></script>
 <script defer src="js/data/starters.js"></script>
 <script defer src="js/data/enemies.js"></script>
@@ -584,6 +586,7 @@
 <script defer src="js/systems/spawner.js"></script>
 <script defer src="js/systems/levelup.js"></script>
 <script defer src="js/systems/gacha.js"></script>
+<script defer src="js/systems/families.js"></script>
 <script defer src="js/systems/interact.js"></script>
 <script defer src="js/systems/rift.js"></script>
 <script defer src="js/systems/events.js"></script>

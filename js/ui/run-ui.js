@@ -102,6 +102,24 @@ G.RunUI = (() => {
     return true;
   }
 
+  /** Fila de la familia del compañero: nivel, experiencia, lo que aprende y si puede evolucionar. */
+  function famRow(r) {
+    const F = G.Families, f = r.fam, from = f.lv - f.ups;
+    const learned = f.ups ? F.movesOf(r.dex).filter(e => e[1] > from && e[1] <= f.lv) : [];
+    const s = G.DB.save;
+    const evo = F.members(f.f).filter(d => d !== r.dex && G.DEX_BY[d] && F.reqLevel(d) > from && F.reqLevel(d) <= f.lv)
+      .map(d => s.owned[d]
+        ? `<div class="gold">¡Ya puede evolucionar a ${G.DEX_BY[d].name}!</div>`
+        : `<div>Ya tiene nivel para ${G.DEX_BY[d].name}: consíguelo en el gacha o con fragmentos.</div>`);
+    return `<div style="grid-column:1/-1"><span>Familia de ${F.famName(f.f)}</span>
+      <b>Nv. ${f.lv}${f.ups ? ` <span class="gold">(+${f.ups})</span>` : ''}</b>
+      ${f.lv < F.R.cap ? `<div class="xpbar"><i style="width:${Math.min(100, f.xp / f.need * 100).toFixed(1)}%"></i></div>` : ''}
+      <div style="font-size:12px;color:var(--muted)">+${f.gained} de experiencia</div>
+      ${learned.length ? `<div style="font-size:13px"><span>Aprende:</span> ${learned.map(e =>
+        `${G.Icons.html('move:' + e[0], 14)} ${G.Moves.BY_ID[e[0]].name}`).join(' · ')}</div>` : ''}
+      ${evo.join('')}</div>`;
+  }
+
   function showOver(r, onBack) {
     $('over-title').textContent = r.dead ? 'Has caído…' : 'Run terminada';
     $('over-stats').innerHTML = `
@@ -112,6 +130,7 @@ G.RunUI = (() => {
       <div style="grid-column:1/-1"><span>Pokémonedas ganadas</span>
         <b class="gold"><span class="coin"></span> +${r.coins}</b>
         <div style="font-size:12px;color:var(--muted)">${r.breakdown}</div></div>
+      ${r.fam ? famRow(r) : ''}
       ${r.t1 || r.t10 ? `<div style="grid-column:1/-1"><span>Tickets del gacha</span><b>
         ${r.t1 ? G.Icons.html('ticket', 22) + ' +' + r.t1 + ' ' : ''}${r.t10 ? G.Icons.html('ticket10', 22) + ' +' + r.t10 + ' ×10' : ''}</b></div>` : ''}
       <div style="grid-column:1/-1"><span>Movimientos</span><b style="font-size:15px">

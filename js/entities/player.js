@@ -53,6 +53,7 @@ G.Player = class Player {
     this.rerollBonus = perks.rerolls || 0;   // cambios comprados en Mejoras (más el gratis)
     this.critChance = perks.crit || 0;       // probabilidad de golpe crítico (Mejoras)
     this.banned = new Set();                 // movimientos vetados (Mejoras → Veto): no salen en las cartas
+    this.movePool = null;                    // los que pueden salir en las cartas (su familia); null = por tipo
     this.bind = {};                          // movimiento -> hueco fijo (0-3), elegido en Mejoras
     this.coins = 0;            // monedas recogidas en esta run
     this.t1 = 0; this.t10 = 0; // tickets del gacha recogidos en esta run

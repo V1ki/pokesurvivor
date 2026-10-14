@@ -6,6 +6,29 @@
  * Cada línea en español y en inglés.
  */
 G.CHANGELOG = [
+  { d: '2026-10-14', title: ['Familias, evolución y entrenador', 'Families, evolution and trainer'], new: [
+    ['Mejoras del entrenador: vida, defensa, regeneración, velocidad, imán, sabiduría, fortuna y cambio de cartas se compran una vez y valen para todos tus Pokémon.',
+     'Trainer upgrades: HP, defense, regeneration, speed, magnet, wisdom, fortune and card rerolls are bought once and work for all your Pokémon.'],
+    ['Familias: cada línea evolutiva sube de nivel jugando con cualquiera de sus Pokémon. El nivel da más daño, menos recarga y más críticos, y desde el nivel 20 empiezas con 2 movimientos.',
+     'Families: each evolution line levels up as you play with any of its Pokémon. Its level gives more damage, less cooldown and more critical hits, and from level 20 you start with 2 moves.'],
+    ['Evolución: un Pokémon evolucionado se puede usar cuando su familia llega a su nivel de evolución (el de los juegos) y lo tienes, sacado en el gacha o desbloqueado con fragmentos en Mejoras.',
+     'Evolution: an evolved Pokémon can be used once its family reaches its evolution level (the one from the games) and you have it, pulled in the gacha or unlocked with shards in Upgrades.'],
+    ['Movimientos como en los juegos: cada Pokémon aprende los suyos al subir el nivel de su familia (Charmander empieza con Arañazo y aprende Ascuas al nivel 4). Las cartas sólo ofrecen los que ya sabe.',
+     'Moves like in the games: each Pokémon learns its own as its family levels up (Charmander starts with Scratch and learns Ember at level 4). Cards only offer the moves it already knows.'],
+    ['Fragmentos: los repetidos del gacha dan fragmentos de la familia de tu compañero, o fragmentos universales si son de otra (2 valen 1 de cualquier familia). Con la familia completa, los fragmentos dan estrellas: +5 % de daño y de vida cada una.',
+     'Shards: gacha duplicates give shards of your partner\'s family, or universal shards if they belong to another one (2 make 1 of any family). Once a family is complete, shards buy stars: +5% damage and HP each.'],
+    ['10 movimientos nuevos de los juegos: Doble Filo, Golpe Cabeza, Impresionar, Golpe Bajo, Destructor, Carantoña, Arañazo, Cuchillada, Golpes Furia y Finta.',
+     '10 new moves from the games: Double-Edge, Headbutt, Astonish, Sucker Punch, Pound, Play Rough, Scratch, Slash, Fury Swipes and Feint Attack.']
+  ], chg: [
+    ['Tus mejoras de antes pasan al nuevo sistema sin perder nada: vida, defensa y las demás al entrenador (con el nivel más alto que tuviera cualquiera de tus Pokémon), y Fuerza, Reflejos, Golpe Crítico y Repertorio al nivel de cada familia. Los Pokémon que ya tenías se pueden seguir usando.',
+     'Your upgrades move to the new system without losing anything: HP, defense and the rest go to the trainer (at the highest level any of your Pokémon had), and Strength, Reflexes, Critical Hit and Repertoire become each family\'s level. The Pokémon you already had can still be used.'],
+    ['Veto desaparece, porque cada Pokémon sólo aprende sus movimientos: se devuelven las Pokémonedas que costó.',
+     'Ban is gone, since each Pokémon only learns its own moves: the PokéCoins it cost are refunded.'],
+    ['Los repetidos del gacha ya no dan Pokémonedas, sino fragmentos.',
+     'Gacha duplicates no longer give PokéCoins, they give shards.'],
+    ['El logro Maestro de movimientos pide ahora los 69 movimientos que evolucionan (los que ya lo tenían lo conservan).',
+     'The Move master achievement now asks for the 69 moves that evolve (if you already had it, you keep it).']
+  ] },
   { d: '2026-10-13', title: ['Todas las partidas cuentan', 'Every run counts'], new: [
     ['Nuevo idioma: chino simplificado (简体中文). Se elige en Ajustes › Gráficos, y sale solo si el navegador está en chino.',
      'New language: Simplified Chinese (简体中文). Pick it in Settings › Graphics; it is chosen automatically if your browser is in Chinese.'],

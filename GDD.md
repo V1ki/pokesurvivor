@@ -79,9 +79,11 @@ Menú principal  (el mundo de fondo, con Pokémon salvajes paseando)
 - Cada ataque reproduce la **animación de PMD** que toca: `Attack`, `Shoot` o `Charge`.
 - **Apuntado:** lo que te está tocando > el jefe si está a tiro > el enemigo más
   cercano > (sin enemigos) la roca o cofre más cercano.
-- **52 movimientos** en 7 familias (proyectil, cuerpo a cuerpo, rayo, orbes,
-  nova, aura, potenciador), 5 niveles cada uno. Cubren los **18 tipos**.
-- El pool de cada Pokémon sale de sus tipos + el pool normal común.
+- **74 movimientos** en 15 formas (proyectil, cuerpo a cuerpo, rayo, orbes, nova,
+  aura, potenciador, bumerán, cadena, minas, meteoros, torreta, embestida, rastro y
+  abanico corto), 5 niveles cada uno. Cubren los **18 tipos**.
+- Los movimientos de cada Pokémon son los de los juegos (`js/data/learnsets.js`): los aprende al
+  subir el nivel de su familia (ver 7.2) y las cartas sólo ofrecen los que ya sabe.
 - Los potenciadores no hacen daño: entras, acumulas y vuelves a uno de ataque.
   Nunca se ofrecen más de 2.
 - Al subir de nivel: **1 de 3 cartas**.
@@ -216,13 +218,31 @@ primero, para ir aprendiendo). Los ataques "con aviso" se ven antes en el suelo.
 Al terminar una run: `tiempo/5 + derrotados/4 + 80 por jefe + monedas recogidas`,
 multiplicado por la mejora Fortuna. Cuenta nueva: 500 de regalo.
 
-Las monedas sirven para las **mejoras**; el gacha va con tickets.
+Las monedas sirven para las **mejoras del entrenador**; el gacha va con tickets.
 
-### 7.2 Mejoras permanentes — de cada Pokémon
-Vitalidad, Fuerza, Zancada, Reflejos, Coraza, Síntesis, Imán, Sabiduría, Fortuna
-y **Repertorio (empezar con 2 movimientos)**. Cada Pokémon tiene las suyas y
-sólo cuentan cuando juegas con él (en la pantalla de Mejoras se elige cuál).
-Las que se compraron cuando eran de la cuenta pasaron al compañero de entonces.
+### 7.2 Entrenador, familias y evolución (`js/systems/families.js`)
+- **Entrenador** (con monedas, para todos los Pokémon): Vitalidad, Coraza, Síntesis,
+  Zancada, Imán, Sabiduría, Fortuna y Cambio de cartas.
+- **Familia** = línea evolutiva (`js/data/evolutions.js`). Sube de nivel (máx. 60) jugando
+  con cualquiera de sus formas: experiencia = 0,5 por segundo aguantado + 1 por derrotado +
+  60 por jefe; del nivel L al L+1 hacen falta 100 + 20·L. Cada nivel da +0,68 % de daño,
+  −0,41 % de recarga y +0,51 % de críticos (al 60, lo que daban Fuerza 10, Reflejos 8 y Golpe
+  Crítico 10); desde el nivel 20 la partida empieza con 2 movimientos (antes Repertorio).
+- **Movimientos**: los de los juegos (los del último juego principal y los que se quitaron,
+  con su nivel; los que aquí son la evolución de otro cuentan como ese: Derribo = Placaje).
+  La partida empieza con el primer ataque que sabe; si no sabe ninguno al nivel 1, con el de
+  su tipo. Las listas cortas se completan con sus MT hasta 4.
+- **Evolución**: una forma se puede usar cuando la familia llega a su nivel de evolución (el
+  de los juegos; si allí evoluciona con un objeto, intercambio o amistad, uno estimado por
+  sus stats base) y la tienes: sacada en el gacha o desbloqueada con **fragmentos**
+  (10/20/40/60/100 según su rareza). Sacarla antes no sirve hasta tener el nivel.
+- **Fragmentos**: un repetido del gacha da fragmentos (1/3/5/10/30 por rareza) de la familia
+  del compañero si es de ella; si no, universales (2 = 1 de cualquier familia). Con la familia
+  completa, 30 fragmentos = 1 estrella (+5 % de daño y de vida, hasta 5).
+- **Migración** (14-10-2026, sin perder nada): las mejoras de cada Pokémon pasan al entrenador
+  (el nivel más alto de cada una) y al nivel de su familia (el que da lo mismo que su Fuerza,
+  Reflejos, Golpe Crítico y Repertorio); Veto se quita y devuelve sus monedas; lo que ya tenías
+  se puede usar siempre (lo conseguido antes de `stats.famAt`).
 
 ### 7.2a Objetos equipables (uno por run)
 Restos, Cinta Elección, Garra Rápida, Banda Focus, Cascabel Concha, Moneda
@@ -254,18 +274,18 @@ una **carta dorada** (siempre, si está lista). Los 47 de ataque evolucionan.
 Kanto, Johto, Hoenn, Sinnoh, Teselia, Kalos, Alola, Galar y Paldea, cada uno con
 **sus Pokémon, sus 3 destacados y su propio pity**.
 
-| Rareza | Prob. | Repetido devuelve |
+| Rareza | Prob. | Repetido da (fragmentos) |
 |---|---|---|
-| Común | 45% | 15 |
-| Poco común | 30% | 30 |
-| Rara | 17% | 60 |
-| Épica | 6,5% | 120 |
-| Legendaria | 1,5% | 300 |
-| *Shiny* | *1% (cualquier rareza)* | *×3* |
+| Común | 45% | 1 |
+| Poco común | 30% | 3 |
+| Rara | 17% | 5 |
+| Épica | 6,5% | 10 |
+| Legendaria | 1,5% | 30 |
+| *Shiny* | *1% (cualquier rareza)* | *no se repiten* |
 
 - Tirada ×1: 1 ticket · ×10: **10 tickets normales o 1 ticket ×10** (dos botones,
   eliges con qué pagar), con **al menos una
-  Épica** garantizada. Los repetidos siguen dando monedas.
+  Épica** garantizada. Los repetidos dan fragmentos (ver 7.2).
 - **Animación: tragaperras pixel art** (palanca, 3 rodillos, bombillas). Los
   símbolos son la rareza: Poké, Super, Ultra, Lujo y Master Ball
   (Legendaria) y la estrella roja (shiny); con Épica o mejor el último rodillo se hace
@@ -513,3 +533,18 @@ guitarra punteada, bajo, pad, lead y batería, con reverb). Cero ficheros.
 - Más tarde (10-10): subir de nivel otra vez la mitad de rápido (experiencia
   por nivel ×4 respecto al original) y tickets ×1 más raros (1/400 en vez de 1/260).
   Misiones de nivel 8/12/15 y logros de nivel 15 y 30 (antes 12/16/20, 20 y 40).
+
+**2026-10-14 · entrenador, familias, evolución y movimientos de los juegos**
+- Por qué: coleccionar no hacía más fuerte (un Pokémon nuevo empezaba sin mejoras), los
+  repetidos sólo daban monedas y, con las mejoras al máximo (unas 6 h según el simulador de
+  Godot), no quedaba nada que hacer. Unas mejoras de la cuenta sin más dejarían el mismo vacío.
+- Las mejoras se parten (7.2): las de supervivencia y economía son del **entrenador** (para
+  todos); las de ataque pasan a un **nivel de familia** que se gana jugando. La **evolución**
+  pide ese nivel y tener la forma (gacha o fragmentos de repetidos; universales de los de
+  otras familias). Los **movimientos** son los de los juegos (`tools/fetch_evolutions.py`:
+  cadenas y listas de PokeAPI, nivel estimado por stats para las evoluciones sin nivel,
+  equivalencias por nombre y por evolución del movimiento) y se aprenden con ese nivel.
+- 10 movimientos nuevos de los que más Pokémon aprenden y faltaban (Doble Filo, Golpe Cabeza,
+  Impresionar, Golpe Bajo, Destructor, Carantoña, Arañazo, Cuchillada, Golpes Furia, Finta).
+- Números iniciales de `G.Families.R` (los mismos que `godot/debug/family_rules.gd`); se
+  ajustan con el simulador (`godot/tests/sim_play.gd --campaign --rules=family`).

@@ -402,9 +402,9 @@
 
     // ---------------- de la lista de movimientos de cada Pokémon (14-10-2026) ----------------
     // Los ataques de los juegos que más Pokémon aprenden por nivel y aquí faltaban
-    // (tools/fetch_evolutions.py). `learn`: NO entran en el pool por tipo (las cartas de
-    // ahora); sólo los dará la lista de cada Pokémon (js/data/learnsets.js) cuando el juego
-    // la use. Mismas formas y gráficos que los demás.
+    // (tools/fetch_evolutions.py). `learn`: sólo los da la lista de movimientos de cada
+    // Pokémon (data/learnsets.js, systems/families.js), no entran en el pool por tipo.
+    // Mismas formas y gráficos que los demás.
     { id: 'double-edge', name: 'Doble Filo', type: 'normal', kind: 'dash', learn: true,
       desc: 'Embestida a todo o nada: arrollas todo a tu paso, pero tarda en recargar.',
       cd: 1.05, dmg: 30, radius: 130, width: 44, knock: 120 },
@@ -456,8 +456,9 @@
     if (m.arc) m.arc = Math.min(3, +(m.arc * 1.25).toFixed(2));
   }
 
-  // Pool de movimientos por tipo. El pool `normal` lo tienen todos.
-  // Los `learn` no entran: sólo saldrán por la lista de movimientos de cada Pokémon.
+  // Pool de movimientos por tipo (el pool `normal` lo tienen todos). Desde el 14-10-2026 las
+  // cartas usan la lista de cada Pokémon (systems/families.js); esto queda de reserva.
+  // Los `learn` no entran: sólo salen por esa lista.
   const POOL = {};
   for (const m of RAW) if (!m.learn) (POOL[m.type] = POOL[m.type] || []).push(m.id);
 
