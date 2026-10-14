@@ -24,6 +24,9 @@ extends SceneTree
 ##   --prof         (forces --jobs=1) time per frame: bot vs Sim.update and its sections
 ##   --learnset=<lv>  moves from the partner's learnset at that family level (debug/family_rules.gd:
 ##                  it starts with the first one, the cards offer only those) instead of its types
+##   --enemies=level  wild Pokémon with levels (sim/enemy_defs.gd "wild levels": stats from base stats
+##                  and level, forms by evolution level) instead of the game's tiers;
+##                  --enemy-set=k=v,... changes its numbers (EnemyDefs.LV_DEFAULTS), e.g. lv0=5,lv_min=4
 ##
 ## Campaign (an account that grows): --campaign=<n> [--accounts=4] [--save-dir=<dir>]
 ##   every account starts like a new one (500 coins, no upgrades) and plays n runs in a row; after
@@ -42,7 +45,8 @@ extends SceneTree
 ##       Pokémon; each evolution family levels up by playing, which gives damage / cooldown / crits /
 ##       a 2nd move and unlocks its learnset; it evolves at the original level once the form is
 ##       owned (pulled, or unlocked with shards from duplicates); --rules-set=k=v,... changes its numbers
-##   Each rule's accounts are saved apart (<profile>_<k>.json, _shared.json, _family.json).
+##   Each rule's accounts are saved apart (<profile>_<k>.json, _shared.json, _family.json; + _lv with
+##   --enemies=level).
 ##   --campaign=0 --save-dir=<dir> only prints the report of the saved accounts (even while another
 ##   campaign is still playing them: they are saved after every run).
 ##   Not simulated: missions and achievements (and their tickets), lost Pokémon joining you.
@@ -189,6 +193,12 @@ func _initialize() -> void:
 	_trace = float(args.get("trace", "0")) if str(args.get("trace", "")) != "" else 0.0
 	_prof = args.has("prof")
 	_learnset_lv = int(args.get("learnset", "0"))
+	# String.to_int() keeps every digit ("1 --x=4" -> 14): refuse anything that isn't a plain number
+	for key in ["runs", "seed", "partner", "jobs", "learnset", "campaign", "accounts"]:
+		if args.has(key) and not str(args[key]).is_valid_int():
+			push_error("--%s needs a whole number, got \"%s\"" % [key, args[key]])
+			quit(1)
+			return
 	if args.has("rules-set"):
 		var bad_r := FamilyRules.set_overrides(str(args["rules-set"]))
 		if not bad_r.is_empty():
@@ -197,6 +207,12 @@ func _initialize() -> void:
 		var bad := Bot.set_overrides(str(args["bot-set"]))
 		if not bad.is_empty():
 			push_error("--bot-set: unknown " + str(bad))
+	if args.has("enemies") or args.has("enemy-set"):
+		var bad_e := EnemyDefs.set_mode(str(args.get("enemies", "level")), str(args.get("enemy-set", "")))
+		if not bad_e.is_empty() or not ["tier", "level"].has(EnemyDefs.mode):
+			push_error("--enemies / --enemy-set: unknown " + str(bad_e) + " " + EnemyDefs.mode)
+			quit(1)
+			return
 	var levels := {}
 	for u in Upgrades.list():
 		levels[u["id"]] = int(floor(int(u["max"]) * upg))
@@ -237,6 +253,8 @@ func _initialize() -> void:
 		_t("until") if max_t >= SAFETY_T else _t("max") % int(max_t), jobs])
 	if not Bot.overrides.is_empty():
 		print("play: profile overrides " + str(Bot.overrides))
+	if EnemyDefs.mode == "level":
+		print(_enemies_line())
 	var t0 := Time.get_ticks_msec()
 	var results := {}
 	if jobs == 1:
@@ -314,10 +332,21 @@ func _parallel(args: Dictionary, profiles: Array, runs: int, seed0: int, jobs: i
 ## The options every worker gets as they were given here.
 static func _pass_on(args: Dictionary) -> Array:
 	var out: Array = []
-	for key in ["partner", "upg", "max", "bot-set", "shared-upg", "rules", "rules-set", "learnset"]:
+	for key in ["partner", "upg", "max", "bot-set", "shared-upg", "rules", "rules-set", "learnset", "enemies", "enemy-set"]:
 		if args.has(key):
 			out.append(("--%s=%s" % [key, args[key]]) if str(args[key]) != "" else "--" + key)
 	return out
+
+## The level mode's numbers and the wild level at a few times.
+static func _enemies_line() -> String:
+	var at: Array = []
+	for m in [0, 1, 3, 5, 8, 10, 15]:
+		at.append("%d:00 Lv%d" % [m, int(EnemyDefs.wild_level(m * 60.0))])
+	var diff := {}
+	for k in EnemyDefs.LV:
+		if str(EnemyDefs.LV[k]) != str(EnemyDefs.LV_DEFAULTS[k]):
+			diff[k] = EnemyDefs.LV[k]
+	return "play: wild levels %s · %s" % [str(diff) if not diff.is_empty() else "(defaults)", " ".join(at)]
 
 static func _tmp_dir() -> String:
 	var dir := OS.get_cache_dir().path_join("pokesurvivor_sim_play_%d" % OS.get_process_id())
@@ -395,7 +424,7 @@ func _play(seed_: int, partner: int, max_t: float, opts: Dictionary) -> Dictiona
 		var mv := FamilyRules.moves_of(acc, partner)
 		opts = opts.duplicate()
 		opts["start_moves"] = FamilyRules.start_moves(acc, partner, mv)
-		opts["pool"] = mv.map(func(e): return e[0])
+		opts["pool"] = FamilyRules.pool_of(partner, mv)
 	if opts.has("start_moves"):
 		sim.debug = {"moves": opts["start_moves"]}
 	sim.start_run(partner, seed_, opts)
@@ -612,7 +641,7 @@ func _family_child(args: Dictionary, acc: Dictionary, path: String, out: FileAcc
 		var dex := int(acc["partner"])
 		var mv := F.moves_of(acc, dex)
 		var r := _play(int(acc["next_seed"]), dex, max_t, {"perks": F.perks(acc, dex),
-			"start_moves": F.start_moves(acc, dex, mv), "pool": mv.map(func(e): return e[0])})
+			"start_moves": F.start_moves(acc, dex, mv), "pool": F.pool_of(dex, mv)})
 		rng.seed = hash("gacha %d %s" % [int(acc["next_seed"]), Bot.profile])
 		acc["next_seed"] = int(acc["next_seed"]) + 1
 		acc["runs"] = int(acc["runs"]) + 1
@@ -679,8 +708,11 @@ func _campaign(args: Dictionary, profiles: Array, partner: int, seed0: int, jobs
 		print(_t("c_head") % [Data.dex_by[partner]["name"], partner, accounts, n, jobs, (_t("c_keep") % dir) if keep != "" else ""])
 	if not Bot.overrides.is_empty():
 		print("play: profile overrides " + str(Bot.overrides))
+	if EnemyDefs.mode == "level":
+		print(_enemies_line())
 	var rule := _rule_of(args)
-	var suffix := "" if rule == "per_mon" else "_" + rule
+	# level-mode accounts are kept apart too (<profile>_<k>[_rule]_lv.json)
+	var suffix := ("" if rule == "per_mon" else "_" + rule) + ("_lv" if EnemyDefs.mode == "level" else "")
 	var tasks: Array = []
 	var totals := {}
 	for prof in profiles:

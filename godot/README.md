@@ -193,7 +193,26 @@ share one `--save-dir`. The report also shows Pokémon owned and the share of ac
 partner (family: trainer progress, family level, stage, first evolution, final form) and each account.
 Missions and achievements (and their tickets) are not simulated. In the batch mode,
 `--learnset=<family level>` gives the partner its learnset at that level instead of its type pool (no
-upgrades), to measure the move system alone.
+upgrades), to measure the move system alone. Knowing fewer than 4 attacks, its type's basic moves fill
+the list (`min_attacks`), and the run starts with one of its own type (`stab_start`).
+
+`--enemies=level` (being tested, batch and campaign) swaps the game's enemy model (BST tiers by run
+time × the time curves) for **wild levels** (`sim/enemy_defs.gd`, "wild levels"): the wild level starts
+at `lv0` and climbs with the run time (`lv_min` per minute, plus `lv_acc` per minute² counted from
+minute `acc_from`); each one spawns at that level ± `spread`. Its HP is the games' HP stat for its base HP and level (× `hp_k`, and ×
+(1 + `grow`) per level if set), its contact damage the games' level factor (`dmg_lv`·Lv + 2, 2/5 in
+the games) × its attack base stat over an average one (× `dmg_k`), its speed from its base speed. A form
+appears from the level it evolves at (Charmeleon from 16) and one that would have evolved leaves
+`linger` levels later; Pokémon that don't evolve appear from the level of evolved forms with similar
+base stats. Bosses are `boss_lv` levels above (× `boss_hp` HP). `EnemyDefs.LV_DEFAULTS` holds every
+number, `--enemy-set=k=v,...` changes them (e.g. `--enemy-set=lv0=5,lv_min=4,grow=0.02`); the report
+prints the wild level at a few times. Campaign accounts of this mode are saved apart (`..._lv.json`).
+The defaults are the variant the playtests picked (2026-10-15, Scorbunny with its learnset, 30 runs per
+profile, at most 20 min): Lv 3 at 0:00, +4 a minute, faster and faster from minute 6 (51 at 10:00, 104
+at 15:00), +3 % HP a level, damage factor 0.2·Lv + 2, XP about the tiers'. Median survival, tiers →
+levels: new account novice 1:47 → 2:59, casual 3:46 → 4:59, expert 3:52 → 5:55 (and deaths far less
+bunched); everything maxed 5:38 → 5:49, 7:28 → 9:12, 13:04 → 13:09 (a third of the experts still alive
+at 20:00 in both).
 `--campaign=0` with the same `--save-dir` only prints that report (accounts are saved after every run,
 so this works while a campaign is still playing them).
 

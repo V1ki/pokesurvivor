@@ -17,6 +17,41 @@ static var _shield: Dictionary = {}
 static var _bomb: Dictionary = {}
 static var _summon: Dictionary = {}
 
+## "tier" (the game's): stats from the tier template of the run time × the time curves (scale,
+## Spawner.hp_k). "level" (being tested, --enemies=level in tests/sim_play.gd): every wild Pokémon
+## has a level that grows with the run time, and its stats come from its base stats and that level
+## with the main games' formula; a form appears from the level it evolves at (Charmeleon from 16)
+## and one that would have evolved leaves LV.linger levels later. See the "wild levels" section.
+static var mode := "tier"
+
+## Every number of the level mode; set_mode(mode, "k=v,k=v") overrides them. These are the ones
+## the playtests picked (2026-10-15, variant "M11": new players last longer and die less all at
+## once than with the tiers, fully upgraded ones about as long): Lv 3 at 0:00, 15 at 3:00, 27 at
+## 6:00, then faster and faster (51 at 10:00, 104 at 15:00).
+const LV_DEFAULTS := {
+	"lv0": 3.0,          # wild level at 0:00
+	"lv_min": 4.0,       # + levels per minute
+	"lv_acc": 0.5,       # + levels per minute squared (the climb speeds up)...
+	"acc_from": 6.0,     #   ...counting the minutes from this one (before it, only lv_min)
+	"spread": 2.0,       # each one is ± up to this many levels off
+	"hp_k": 2.8,         # in-game HP = hp_k × the games' HP stat
+	"dmg_k": 5.4,        # contact damage = dmg_k × the games' level factor (dmg_lv·Lv + 2) × its attack
+	                     #   (Attack or Sp. Atk) over an average one (dmg_of)
+	"dmg_lv": 0.2,       # 2/5 in the games' damage formula; lower = damage climbs slower with level
+	"grow": 0.03,        # extra HP per level above lv0, compounded (0.03 = ×1.03 each level)
+	"xp0": 3.4,          # XP per kill: xp0 + xp_lv × level (then × Spawner.XP_K): about the tiers' XP
+	"xp_lv": 0.17,
+	"bands": [1.0, 12.0, 22.0, 32.0, 42.0, 52.0],   # cast groups by the level a form appears from
+	"linger": 15.0,      # a form that evolves keeps appearing up to its evolution level + this
+	"boss_lv": 8.0,      # bosses: wild level + this,
+	"boss_hp": 5.0,      #   HP × this over a wild one of that species and level,
+	"boss_dmg": 0.8,     #   damage ×
+	"cap": 0.0,          # highest wild level (0 = none)
+}
+static var LV: Dictionary = LV_DEFAULTS.duplicate(true)
+static var _lv_tiers: Array = []
+static var _appear: Dictionary = {}       # dex -> [appears from, leaves after] (wild levels)
+
 var cast: Array = []         # [{from, list: [def]}]
 var bosses: Array = []       # the 5 boss defs of this run (spawned by the Spawner at `at` s)
 
@@ -33,6 +68,8 @@ static func _sets() -> void:
 		_summon[int(k)] = int(Data.enemies["summon"][k])
 
 static func tiers() -> Array:
+	if mode == "level":
+		return _level_tiers()
 	return Data.enemies["tiers"]
 
 ## Approximate base stats from the game stats (inverse of tools/fetch_pokedex.py).
@@ -112,11 +149,29 @@ static func def_for(p: Dictionary, tier: Dictionary, ti: int) -> Dictionary:
 	if beh == "bomber":
 		d["spd"] = U.jround(d["spd"] * 1.25)
 		d["hp"] = U.jround(d["hp"] * 0.8)
+	if tier.has("lv"):
+		# level mode: what the stats come from; Spawner.make_enemy works them out at its level
+		d["bhp"] = base_hp(p)
+		d["batk"] = base_atk(p)
+		d["spd_k"] = spd_k
+		d["hp_m"] = (1.5 if tank else 1.0) * (0.8 if beh == "bomber" else 1.0)
+		d["dmg_m"] = 1.2 if tank else 1.0
+		d["spd_m"] = (0.7 if tank else 1.0) * (1.25 if beh == "bomber" else 1.0)
+		d["xp_m"] = 1.3 if tank else 1.0
+		d["shot_m"] = 0.7 if beh == "fan" else 0.8
+		d["leave"] = leave_level(int(p["dex"]))
+		return at_level(d, float(tier["lv"][0]))
 	return d
 
 ## All candidates of a tier (no legendaries/mythicals), unfiltered.
 static func candidates_all(tier: Dictionary) -> Array:
 	var out: Array = []
+	if tier.has("lv"):
+		for p in Data.dex:
+			var a := appear_level(int(p["dex"]))
+			if float(p["rarity"]) < 5.0 and a >= float(tier["lv"][0]) and a < float(tier["lv"][1]) and Data.meta_by.has(p["dex"]):
+				out.append(p)
+		return out
 	var lo: float = tier["bst"][0]
 	var hi: float = tier["bst"][1]
 	for p in Data.dex:
@@ -182,6 +237,9 @@ func roll_run() -> void:
 			best["behavior"] = "runner"
 			best["spd"] = U.jround(float(best["spd"]) * 1.6)
 			best["hp"] = U.jround(float(best["hp"]) * 0.7)
+			if best.has("hp_m"):
+				best["spd_m"] = float(best["spd_m"]) * 1.6
+				best["hp_m"] = float(best["hp_m"]) * 0.7
 	# the 5 boss slots: non-legendary, not repeated, BST in the slot's range
 	bosses = []
 	var used := {}
@@ -207,6 +265,13 @@ static func boss_pool(slot: Dictionary, used: Dictionary) -> Array:
 ## Boss def of species p in a slot (x1.35 HP and x1.2 damage over the slot values).
 static func boss_def(slot: Dictionary, bp: Dictionary) -> Dictionary:
 	var bs := base_spd(bp)
+	if mode == "level":
+		var b := {"at": float(slot["at"]), "dex": int(bp["dex"]), "name": bp["name"],
+			"bhp": base_hp(bp), "batk": base_atk(bp), "xp": float(slot["xp"]),
+			"spd": U.jround(U.clampf_(40.0 + bs * 0.5, 40.0, 100.0)),
+			"behavior": "ranged" if behavior_of(bp) == "ranged" else ("charger" if bs > 90.0 else "chase"),
+			"shotCd": 1.1, "range": 260.0}
+		return boss_at_level(b, wild_level(float(slot["at"])) + float(LV["boss_lv"]))
 	return {
 		"at": float(slot["at"]), "dex": int(bp["dex"]), "name": bp["name"],
 		"hp": U.jround(float(slot["hp"]) * 1.35), "spd": U.jround(U.clampf_(40.0 + bs * 0.5, 40.0, 100.0)),
@@ -269,14 +334,20 @@ func bag_at(t: float) -> Array:
 	if cast.is_empty():
 		roll_run()
 	var bag: Array = []
+	var wl := wild_level(t)
+	var last: Array = cast[0]["list"]
 	for tier in cast:
 		if t < float(tier["from"]):
 			continue
+		last = tier["list"]
 		var w := 3 if t - float(tier["from"]) > 260.0 else 10
 		for e in tier["list"]:
+			# level mode: a form that would have evolved by now no longer appears
+			if e.has("leave") and wl > float(e["leave"]):
+				continue
 			for i in w:
 				bag.append(e)
-	return bag if not bag.is_empty() else cast[0]["list"]
+	return bag if not bag.is_empty() else last
 
 ## Dexes of the cast (and bosses) due within `ahead` s (sprite preloading).
 func upcoming_dex(t: float, ahead := 60.0) -> Array:
@@ -291,3 +362,159 @@ func upcoming_dex(t: float, ahead := 60.0) -> Array:
 		if float(b["at"]) <= t + ahead:
 			out.append(b["dex"])
 	return out
+
+# ---------------- wild levels (mode "level") ----------------
+
+## Picks the model ("tier" / "level") and the level numbers ("lv0=2,lv_min=4,bands=1/10/20").
+## Returns the keys it did not know.
+static func set_mode(m: String, text := "") -> Array:
+	mode = m
+	LV = LV_DEFAULTS.duplicate(true)
+	_lv_tiers = []
+	var bad: Array = []
+	for kv in text.split(",", false):
+		var p := kv.split("=", true, 1)
+		if p.size() < 2 or not LV.has(p[0]):
+			bad.append(kv)
+		elif "/" in p[1]:
+			LV[p[0]] = Array(p[1].split("/")).map(func(x): return float(x))
+		else:
+			LV[p[0]] = float(p[1])
+	return bad
+
+## Wild level at run time t (not rounded): lv0 + lv_min·m + lv_acc·(m - acc_from)², m in minutes
+## (the last part only after acc_from).
+static func wild_level(t: float) -> float:
+	var m := t / 60.0
+	var u := maxf(0.0, m - float(LV["acc_from"]))
+	var l := float(LV["lv0"]) + float(LV["lv_min"]) * m + float(LV["lv_acc"]) * u * u
+	return minf(l, float(LV["cap"])) if float(LV["cap"]) > 0.0 else l
+
+## When the wild level reaches l (s); 0 for levels it starts at or above.
+static func time_of_level(l: float) -> float:
+	var a := float(LV["lv_acc"])
+	var b := float(LV["lv_min"])
+	var f := float(LV["acc_from"])
+	var c := float(LV["lv0"]) - l
+	if c >= 0.0:
+		return 0.0
+	# before acc_from (or with no acceleration) it climbs lv_min a minute
+	if a <= 0.0 or float(LV["lv0"]) + b * f >= l:
+		return -c / maxf(b, 0.001) * 60.0
+	# after: a·u² + b·u + (lv0 + b·f - l) = 0, u = minutes past acc_from
+	var c2 := float(LV["lv0"]) + b * f - l
+	return (f + (-b + sqrt(b * b - 4.0 * a * c2)) / (2.0 * a)) * 60.0
+
+## Level of one that appears now: the wild level ± spread (whole levels, at least 1).
+static func spawn_level(t: float) -> int:
+	var s := int(LV["spread"])
+	var l := int(floorf(wild_level(t)))
+	if s > 0:
+		l += randi() % (2 * s + 1) - s
+	return maxi(1, l)
+
+## The main games' stat formula (IV 31, no EVs, neutral nature).
+static func hp_stat(b: float, l: float) -> float:
+	return (2.0 * b + 31.0) * l / 100.0 + l + 10.0
+
+static func stat(b: float, l: float) -> float:
+	return (2.0 * b + 31.0) * l / 100.0 + 5.0
+
+## Damage like the games' formula: the attacker's level factor (2·Lv/5 + 2, dmg_lv = 2/5) times
+## its attack stat over an average one (base 75: (2·75+31) = 181), scaled so that level 3 hits
+## about the same whatever dmg_lv is. Defense left out: it's the player's upgrades.
+static func dmg_of(batk: float, l: float) -> float:
+	var k := float(LV["dmg_lv"])
+	return (k * l + 2.0) * (3.2 / (k * 3.0 + 2.0)) * (2.0 * batk + 31.0) / 181.0
+
+## Approximate higher of base Attack / Sp. Atk (inverse of tools/fetch_pokedex.py).
+static func base_atk(p: Dictionary) -> float:
+	return (float(p["atk"]) - 0.70) / 0.55 * 100.0
+
+## A level-mode def with its stats at level l (hp, dmg, spd, xp, shotDmg).
+static func at_level(d: Dictionary, l: float) -> Dictionary:
+	var o := d.duplicate()
+	var lv := maxf(1.0, l)
+	var grow := pow(1.0 + float(LV["grow"]), maxf(0.0, lv - float(LV["lv0"])))
+	o["level"] = int(lv)
+	o["hp"] = maxf(1.0, U.jround(float(LV["hp_k"]) * hp_stat(float(d["bhp"]), lv) * float(d["hp_m"]) * grow))
+	o["dmg"] = U.round2(float(LV["dmg_k"]) * dmg_of(float(d["batk"]), lv) * float(d["dmg_m"]))
+	o["spd"] = U.jround((56.0 + minf(16.0, lv * 0.3)) * float(d["spd_k"]) * float(d["spd_m"]))
+	o["xp"] = maxf(3.0, U.jround((float(LV["xp0"]) + float(LV["xp_lv"]) * lv) * float(d["xp_m"])))
+	if d.has("shotDmg"):
+		o["shotDmg"] = U.round2(float(o["dmg"]) * float(d["shot_m"]) / float(d["dmg_m"]))
+	return o
+
+## A level-mode boss at level l: boss_hp × the HP of a wild one of that species and level.
+static func boss_at_level(b: Dictionary, l: float) -> Dictionary:
+	var o := b.duplicate()
+	var lv := maxf(1.0, l)
+	var grow := pow(1.0 + float(LV["grow"]), maxf(0.0, lv - float(LV["lv0"])))
+	o["level"] = int(lv)
+	o["hp"] = U.jround(float(LV["hp_k"]) * hp_stat(float(b["bhp"]), lv) * float(LV["boss_hp"]) * grow)
+	o["dmg"] = U.round2(float(LV["dmg_k"]) * dmg_of(float(b["batk"]), lv) * float(LV["boss_dmg"]))
+	o["shotDmg"] = U.round2(float(o["dmg"]) * 0.46)
+	return o
+
+## The level a species appears from in the wild: an evolved form from its evolution level
+## (FamilyRules.req_level: the games' one, or estimated from its base stats); a first form that
+## evolves from 1; one that doesn't evolve at all, the level of evolved forms with similar base
+## stats. Leaves after its next form's level + linger (never, for a last form).
+static func appear_level(dex: int) -> float:
+	_appear_data()
+	return float(_appear.get(dex, [1.0, 999.0])[0])
+
+static func leave_level(dex: int) -> float:
+	_appear_data()
+	return float(_appear.get(dex, [1.0, 999.0])[1]) + (float(LV["linger"]) if float(_appear.get(dex, [1.0, 999.0])[1]) < 999.0 else 0.0)
+
+static func _appear_data() -> void:
+	if not _appear.is_empty():
+		return
+	FamilyRules._data()
+	var evo: Dictionary = FamilyRules._evo
+	# base stat total -> level, fitted on the level evolutions (like tools/fetch_evolutions.py)
+	var n := 0.0
+	var sx := 0.0
+	var sy := 0.0
+	var sxx := 0.0
+	var sxy := 0.0
+	for k in evo:
+		var lv := int((evo[k].get("how", {}) as Dictionary).get("lv", 0))
+		if lv > 0 and Data.dex_by.has(int(k)):
+			var x := float(Data.dex_by[int(k)]["bst"])
+			n += 1.0
+			sx += x
+			sy += lv
+			sxx += x * x
+			sxy += x * lv
+	var b1 := (n * sxy - sx * sy) / (n * sxx - sx * sx)
+	var b0 := (sy - b1 * sx) / n
+	for p in Data.dex:
+		var d := int(p["dex"])
+		var e: Dictionary = evo.get(str(d), {})
+		var h: Dictionary = e.get("how", {})
+		var from := 1.0
+		if int(h.get("lv", 0)) > 0 or int(h.get("est", 0)) > 0:
+			from = minf(60.0, float(h.get("lv", 0) if int(h.get("lv", 0)) > 0 else h.get("est", 0)))
+		elif FamilyRules.members(FamilyRules.fam_of(d)).size() <= 1:
+			from = clampf(roundf(b0 + b1 * float(p["bst"])), 1.0, 60.0)
+		var nxt := 999.0
+		for c in FamilyRules.members(FamilyRules.fam_of(d)):
+			var ce: Dictionary = evo.get(str(c), {})
+			if int(ce.get("from", 0)) == d:
+				nxt = minf(nxt, float(FamilyRules.req_level(c)))
+		_appear[d] = [from, nxt]
+
+## The cast groups of the level mode: one per band, from when the wild level reaches it.
+static func _level_tiers() -> Array:
+	if not _lv_tiers.is_empty():
+		return _lv_tiers
+	var bands: Array = LV["bands"]
+	var base: Array = Data.enemies["tiers"]
+	for i in bands.size():
+		var t: Dictionary = (base[mini(i, base.size() - 1)] as Dictionary).duplicate()
+		t["from"] = 0.0 if i == 0 else roundf(time_of_level(float(bands[i])))
+		t["lv"] = [float(bands[i]) if i > 0 else -999.0, float(bands[i + 1]) if i + 1 < bands.size() else 9999.0]
+		_lv_tiers.append(t)
+	return _lv_tiers

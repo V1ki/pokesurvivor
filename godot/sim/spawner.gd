@@ -97,7 +97,14 @@ func spawn_one(pl: Player, t: float, angle := NAN) -> Enemy:
 func spawn_boss(pl: Player, t: float, b: Dictionary) -> Enemy:
 	var S := Sim.cur
 	var pt := ring_point(pl, randf() * U.TAU_JS)
-	var e := Enemy.new(b, pt[0], pt[1], EnemyDefs.boss_scale(t), true)
+	var e: Enemy
+	if b.has("bhp"):
+		# level mode: its level now (wild level + boss_lv); only the overtime curve on top
+		var k := EnemyDefs.late(t)
+		e = Enemy.new(EnemyDefs.boss_at_level(b, EnemyDefs.wild_level(t) + float(EnemyDefs.LV["boss_lv"])), pt[0], pt[1],
+			{"hp": k, "dmg": pow(k, 0.7), "spd": 1.0}, true)
+	else:
+		e = Enemy.new(b, pt[0], pt[1], EnemyDefs.boss_scale(t), true)
 	if roll_shiny(int(b["dex"])):
 		e.make_shiny()
 	S.enemies.add(e)
@@ -108,10 +115,16 @@ func spawn_boss(pl: Player, t: float, b: Dictionary) -> Enemy:
 
 ## Spawn stat pipeline, separated so the tests can check it: scale*hpK, DMG_K, XP_K, elite.
 static func make_enemy(def: Dictionary, x: float, y: float, t: float, alive: int) -> Enemy:
-	var s := EnemyDefs.scale(t)
-	var sc := {"hp": s["hp"] * hp_k(t), "dmg": s["dmg"], "spd": s["spd"]}
-	var e := Enemy.new(def, x, y, sc)
-	e.dmg *= DMG_K
+	var e: Enemy
+	if def.has("bhp"):
+		# level mode: stats from its base stats at its level; only the overtime curve on top
+		var k := EnemyDefs.late(t)
+		e = Enemy.new(EnemyDefs.at_level(def, EnemyDefs.spawn_level(t)), x, y, {"hp": k, "dmg": pow(k, 0.7), "spd": 1.0})
+	else:
+		var s := EnemyDefs.scale(t)
+		var sc := {"hp": s["hp"] * hp_k(t), "dmg": s["dmg"], "spd": s["spd"]}
+		e = Enemy.new(def, x, y, sc)
+		e.dmg *= DMG_K
 	e.xp = U.jround(e.xp * XP_K)
 	if alive >= CAP * ELITE_FROM:
 		# elite: no visual marker
