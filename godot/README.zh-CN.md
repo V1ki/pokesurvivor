@@ -134,6 +134,8 @@ godot --headless --path godot --script res://tests/bench.gd -- --json   # 性能
 | `buffs` | 安全时是否叠 buff 技能 |
 | `reroll` | 手牌不好时是否换卡 |
 | `shop` | 养成模式里怎么花钱：`cheapest` 总买最便宜的 · `casual` / `expert` 按性价比 |
+| `gacha` | 养成模式里怎么用券：`now` 有券就抽 · `x10` 只十连 |
+| `partner` | 养成模式里怎么选伙伴：`excited` 抽到更稀有的新史诗或传说就换 · `casual` 新的史诗或传说不太弱就换 · `power` 总用最强的 |
 
 ### 批量试玩（`tests/sim_play.gd`）
 
@@ -176,6 +178,8 @@ godot --headless --path godot --script res://tests/sim_play.gd -- --bot=novice,c
 ```sh
 # 开始养成，或者接着上次的进度继续（同一个存档目录 = 接着玩）
 godot --headless --path godot --script res://tests/sim_play.gd -- --campaign=100 --accounts=4 --save-dir=user://accounts --lang=zh
+# 同样的账号和种子，换成新方案（训练家 + 家族等级、进化、碎片）对比
+godot --headless --path godot --script res://tests/sim_play.gd -- --campaign=100 --accounts=4 --save-dir=user://accounts --lang=zh --rules=family
 # 只看存档账号的报告，不玩新局（模拟还在跑的时候也能看）
 godot --headless --path godot --script res://tests/sim_play.gd -- --campaign=0 --accounts=4 --save-dir=user://accounts --lang=zh
 ```
@@ -185,13 +189,32 @@ godot --headless --path godot --script res://tests/sim_play.gd -- --campaign=0 -
 - `--save-dir=<目录>` 把每个账号存成 `<目录>/<档位>_<编号>.json`（钱包、强化等级、玩了几局、总游戏时长、下一局的种子、每一局的记录）。**每局结束都会保存**，用同一个目录再跑一次就接着玩。
   `user://accounts` 在 macOS 上是 `~/Library/Application Support/Godot/app_userdata/PokeSurvivor/accounts`。
 - 各档的账号 k 玩的是同一批地图，比较才公平。
+- **抽卡和换伙伴**：每局捡到的券也存起来，在初始伙伴所在世代的卡池抽卡（保底会累积），重复的宝可梦退币进钱包（`Bot.gacha`）：
+  - 新手有券就抽，单抽也抽；普通和高手只十连（十连券，或攒够 10 张普通券）。
+  - 换不换伙伴（`Bot.choose_partner`）：
+    - 新手：抽到比现在伙伴更稀有的新史诗或传说就换；
+    - 普通：新抽到的史诗或传说只要算上强化后不比现在的弱太多就换，或者手上有明显更强的就换；
+    - 高手：总是用最强的那只（`Bot.power`：基础能力 × 强化）。
+- **成长规则**（`--rules=`）：
+  - `per_mon`（默认，游戏现行规则）：金币强化**每只宝可梦单独**，换上的新伙伴从零开始。
+  - `shared`（或 `--shared-upg`）：同样的金币强化改成**整个账号共享**。
+  - `family`（新方案，`debug/family_rules.gd`）：
+    - 金币只买**训练家强化**（生命、防御、回血、移速、吸取、经验、幸运、换卡），所有宝可梦共享；
+    - 每个**进化家族**有自己的等级，用家族里任何一只打局都会涨，等级带来原来的力量、冷却、暴击、开局 2 技能，并按原作解锁招式（开局用最先学会的攻击招式，升级卡只给已学会的招式）；
+    - 家族等级到了原作的进化等级、并且拥有那个形态（抽到，或用**碎片**解锁）就能进化；
+    - 碎片来自重复：伙伴家族的重复给这个家族的碎片，其他重复给**万能碎片**（2 个换 1 个）；家族形态齐了以后，碎片用来**突破**；
+    - 能进化时所有玩家都会马上进化。
+    - 所有数值都在 `FamilyRules.DEFAULTS` 里，可以用 `--rules-set=k=v,...` 临时修改（比如 `--rules-set=xp_per_s=1,unlock=5/10/20/40/80`）。
+  - 每种规则的账号分开存（`<档位>_<编号>.json`、`_shared.json`、`_family.json`），可以放在同一个存档目录里。
+- 批量试玩里加 `--learnset=<家族等级>`，可以只把招式换成“这个家族等级下按原作能学的招式”（不带任何养成），单独测招式系统的影响。
 
 报告是每档的**成长曲线**：
 - 在第 1、5、10、20、30、50、75、100… 局时：累计游戏时长、强化进度（4 万币花掉了多少）、平均和最长坚持时间、每局收入、见到 Boss 的比例；
 - **第一次坚持到 3 / 5 / 10 分钟**、**强化全部点满**分别是第几局、玩了几小时（几个账号的中位数）；
-- 账号 1 最先买了哪些强化。
+- 账号 1 最先买了哪些强化；每个账号现在用的伙伴、拥有几只宝可梦、抽了几次、换过几次伙伴。
+- 表格里还有“拥有”（平均拥有几只宝可梦）和“已换伙伴”（不再用初始伙伴的账号比例）。
 
-还没有模拟的：扭蛋（换别的宝可梦）、每日 / 每周任务、成就奖励。bot 的技术水平也不会随着局数提高（真人会越玩越熟练）。
+还没有模拟的：每日 / 每周任务和成就（以及它们给的券）、走失的宝可梦加入队伍。bot 的技术水平也不会随着局数提高（真人会越玩越熟练）。
 
 ### 开窗口看 bot 玩
 

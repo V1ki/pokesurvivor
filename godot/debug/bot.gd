@@ -42,19 +42,25 @@ extends RefCounted
 ##   reroll     rerolls a bad hand of cards
 ##   shop       how it spends coins on permanent upgrades between runs (tests/sim_play.gd --campaign):
 ##              cheapest = always the cheapest one; casual / expert = best SHOP_W value per coin
+##   gacha      how it spends gacha tickets between runs: now = every ticket at once (x1 pulls too),
+##              x10 = only x10 pulls (a x10 ticket, or 10 normal ones saved up)
+##   partner    which owned Pokémon it plays next (Bot.choose_partner): excited = switches to a new
+##              Epic / Legendary it pulls that is rarer than the current partner; casual = to a new Epic / Legendary unless it is clearly
+##              weaker than the current one (with their upgrades), or to anyone clearly stronger;
+##              power = always the strongest by Bot.power
 const PROFILES := {
 	"novice": {"react": 0.40, "think": 0.16, "dirs": 8, "lapse": 0.25, "noise": 0.25, "attention": 10,
 		"see": 300.0, "margin": 18.0, "horizon": 0.5, "crowd": 0.5, "tangent": 0.0, "greed": 1.0,
 		"seek": 350.0, "chest": [2, 4], "aim": 0.0, "switch": "stay", "cards": "novice", "buffs": false, "reroll": false,
-		"shop": "cheapest"},
+		"shop": "cheapest", "gacha": "now", "partner": "excited"},
 	"casual": {"react": 0.27, "think": 0.10, "dirs": 8, "lapse": 0.10, "noise": 0.12, "attention": 20,
 		"see": 380.0, "margin": 28.0, "horizon": 0.8, "crowd": 1.0, "tangent": 0.35, "greed": 1.1,
 		"seek": 900.0, "chest": [3, 6], "aim": 0.6, "switch": "best", "cards": "casual", "buffs": false, "reroll": true,
-		"shop": "casual"},
+		"shop": "casual", "gacha": "x10", "partner": "casual"},
 	"expert": {"react": 0.18, "think": 0.05, "dirs": 16, "lapse": 0.02, "noise": 0.04, "attention": 40,
 		"see": 460.0, "margin": 30.0, "horizon": 1.0, "crowd": 1.2, "tangent": 0.6, "greed": 1.3,
 		"seek": 1200.0, "chest": [5, 8], "aim": 1.0, "switch": "smart", "cards": "expert", "buffs": true, "reroll": true,
-		"shop": "expert"},
+		"shop": "expert", "gacha": "x10", "partner": "power"},
 }
 
 ## Area moves (good in a crowd) and single-target ones (good on a boss), for "smart" switching.
@@ -708,11 +714,9 @@ static func _human_goal(sim: Sim, near_n: int, hurt_k: float) -> Array:
 
 ## Spends `coins` on permanent upgrades the way this profile's player would (Upgrades.cost, max
 ## levels); `levels` is updated in place. bans_left = buff moves that a Veto level could still
-## block. Returns {coins: left, bought: [ids in order]}.
-static func shop(levels: Dictionary, coins: int, bans_left: int) -> Dictionary:
-	var P: Dictionary = (PROFILES.get(profile, PROFILES["casual"]) as Dictionary).duplicate()
-	P.merge(overrides, true)
-	var style: String = P.get("shop", "casual")
+## block; only = the upgrade ids on sale (empty = all). Returns {coins: left, bought: [ids in order]}.
+static func shop(levels: Dictionary, coins: int, bans_left: int, only: Array = []) -> Dictionary:
+	var style: String = _profile_dict().get("shop", "casual")
 	var bought: Array = []
 	while true:
 		var best := ""
@@ -720,7 +724,7 @@ static func shop(levels: Dictionary, coins: int, bans_left: int) -> Dictionary:
 		for u in Upgrades.list():
 			var id: String = u["id"]
 			var lvl := int(levels.get(id, 0))
-			if lvl >= int(u["max"]) or (id == "ban" and lvl >= bans_left):
+			if (not only.is_empty() and not only.has(id)) or lvl >= int(u["max"]) or (id == "ban" and lvl >= bans_left):
 				continue
 			var cost := Upgrades.cost(id, lvl)
 			if cost > coins:
@@ -735,6 +739,63 @@ static func shop(levels: Dictionary, coins: int, bans_left: int) -> Dictionary:
 		levels[best] = int(levels.get(best, 0)) + 1
 		bought.append(best)
 	return {"coins": coins, "bought": bought}
+
+## Spends the gacha tickets of `save` (a Gacha save: tickets, pity, owned, shiny, coins, stats) on
+## banner `gen` the way this profile's player would. rng: the account's own generator.
+static func gacha(save: Dictionary, gen: int, rng: RandomNumberGenerator) -> Array:
+	var P := _profile_dict()
+	var rnd := func() -> float: return rng.randf()
+	var got: Array = []
+	var t: Dictionary = save["tickets"]
+	while int(t["t10"]) > 0:
+		got += Gacha.pull(save, 10, gen, "t10", rnd)
+	while int(t["t1"]) >= 10:
+		got += Gacha.pull(save, 10, gen, "t1", rnd)
+	if P.get("gacha", "x10") == "now":
+		while int(t["t1"]) > 0:
+			got += Gacha.pull(save, 1, gen, "t1", rnd)
+	return got
+
+## How strong a Pokémon is with these upgrade levels, roughly: damage x toughness^0.6 x speed^0.3
+## (base stats from the Pokédex, perks from Upgrades.perks; a 2nd starting move counts 30%).
+static func power(mon: Dictionary, levels: Dictionary) -> float:
+	var pk := Upgrades.perks(levels)
+	var atk := float(mon["atk"]) * float(pk["atkMul"]) / float(pk["cdMul"]) * (1.0 + float(pk["crit"]) * 0.5)
+	var hp := (float(mon["hp"]) + float(pk["hp"])) / (1.0 - float(pk["dmgReduce"])) + float(pk["regen"]) * 30.0
+	var spd := float(mon["spd"]) * float(pk["spdMul"])
+	return atk * pow(hp, 0.6) * pow(spd, 0.3) * (1.3 if int(pk["startMoves"]) >= 2 else 1.0)
+
+## The partner for the next run. owned: the dex numbers it can play; cur: the current partner;
+## got: what is new this session ({dex, rarity, isNew}: gacha results, unlocked forms);
+## pw: Callable(dex) -> how strong that Pokémon would be (Bot.power or FamilyRules.power).
+static func choose_partner(owned: Array, cur: int, got: Array, pw: Callable) -> int:
+	var style: String = _profile_dict().get("partner", "power")
+	var cur_r := int(Data.dex_by[cur]["rarity"])
+	var fresh := got.filter(func(r): return r["isNew"] and int(r["rarity"]) >= 4).map(func(r): return int(r["dex"]))
+	if style == "excited":
+		# the shiniest new toy: the rarest new Epic / Legendary (or anything rarer than the current one)
+		var best := cur
+		for r in got:
+			var d := int(r["dex"])
+			if r["isNew"] and int(r["rarity"]) >= maxi(4, int(Data.dex_by[best]["rarity"]) + (1 if best == cur else 0)):
+				best = d
+		return best
+	var strongest := cur
+	for d in owned:
+		if pw.call(int(d)) > pw.call(strongest):
+			strongest = int(d)
+	if style == "casual":
+		var p0: float = pw.call(cur)
+		for d in fresh:
+			if pw.call(d) >= 0.85 * p0 and int(Data.dex_by[d]["rarity"]) >= cur_r:
+				return d
+		return strongest if pw.call(strongest) > 1.1 * p0 else cur
+	return strongest if pw.call(strongest) > 1.03 * pw.call(cur) else cur
+
+static func _profile_dict() -> Dictionary:
+	var P: Dictionary = (PROFILES.get(profile, PROFILES["casual"]) as Dictionary).duplicate()
+	P.merge(overrides, true)
+	return P
 
 ## The moves a player blocks with Veto: the buff moves of the partner's pool (they deal no damage).
 static func bans_for(mon: Dictionary) -> Array:

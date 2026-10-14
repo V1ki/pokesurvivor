@@ -29,6 +29,7 @@ const EN = {};
 load('js/core/util.js'); load('js/core/i18n.js');
 const add = G.I18n.add; G.I18n.add = (d, l = 'en') => { if (l === 'en') Object.assign(EN, d); add(d, l); };
 load('js/data/lang-en.js'); load('js/core/settings.js'); load('js/data/music.js'); load('js/data/pokedex.js'); load('js/data/sprites-meta.js');
+load('js/data/evolutions.js'); load('js/data/learnsets.js');       // families and learnsets (tools/fetch_evolutions.py)
 G.Sprites = { PX: 2, hovers: d => !!(G.SPRITE_META[d] && G.SPRITE_META[d].hv), hasShiny: d => !!(G.SPRITE_META[d] && G.SPRITE_META[d].sh) };
 load('js/data/moves.js', s => s.replace('G.Moves = { ALL: RAW,', 'G.Moves = { LADDERS, EVO_MODS, START, MULT, ADD, ALL: RAW,'));
 load('js/data/enemies.js', s => s.replace('TIERS, BOSS_SLOTS, LATE_FROM,', 'behaviorOf, defFor, HEAL: [...HEAL], SHIELD: [...SHIELD], BOMB: [...BOMB], SUMMON, TIERS, BOSS_SLOTS, LATE_FROM,'));
@@ -45,6 +46,8 @@ const files = {};
 
 files['pokedex.json'] = G.DEX;
 files['sprite_meta.json'] = G.SPRITE_META;
+files['evolutions.json'] = G.EVO;
+files['learnsets.json'] = G.LEARNSETS;
 const M = G.Moves;
 files['moves.json'] = {
   moves: M.ALL.map(m => { const o = strip(m); delete o.ups; return o; }),   // post melee transform

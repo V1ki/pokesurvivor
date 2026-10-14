@@ -22,6 +22,8 @@ extends SceneTree
 ##   --trace=<s>    (forces --jobs=1; use one profile and --runs=1) a line every s seconds: HP, level,
 ##                  enemies near, closest one, active move, the bot's direction
 ##   --prof         (forces --jobs=1) time per frame: bot vs Sim.update and its sections
+##   --learnset=<lv>  moves from the partner's learnset at that family level (debug/family_rules.gd:
+##                  it starts with the first one, the cards offer only those) instead of its types
 ##
 ## Campaign (an account that grows): --campaign=<n> [--accounts=4] [--save-dir=<dir>]
 ##   every account starts like a new one (500 coins, no upgrades) and plays n runs in a row; after
@@ -31,9 +33,19 @@ extends SceneTree
 ##   --campaign with the same dir CONTINUES those accounts instead of starting over. The report is
 ##   the progression curve (survival, coins, upgrades, hours played at run 1, 5, 10, 20, 50, 100...),
 ##   when an account first lasts 3 / 5 / 10 min, when everything is maxed, and what it bought first.
+##   Between runs the account also spends the gacha tickets it picked up (Bot.gacha, the partner's
+##   generation banner, duplicates refund coins) and may switch to a Pokémon it pulled
+##   (Bot.choose_partner). --rules picks the progression:
+##     per_mon (default, the game's): coin upgrades per Pokémon (a new partner starts from zero)
+##     shared (or --shared-upg): the same coin upgrades shared by the whole account
+##     family: the proposed one (debug/family_rules.gd): coins buy trainer upgrades for every
+##       Pokémon; each evolution family levels up by playing, which gives damage / cooldown / crits /
+##       a 2nd move and unlocks its learnset; it evolves at the original level once the form is
+##       owned (pulled, or unlocked with shards from duplicates); --rules-set=k=v,... changes its numbers
+##   Each rule's accounts are saved apart (<profile>_<k>.json, _shared.json, _family.json).
 ##   --campaign=0 --save-dir=<dir> only prints the report of the saved accounts (even while another
 ##   campaign is still playing them: they are saved after every run).
-##   Not simulated: gacha (other partners), missions, achievements.
+##   Not simulated: missions and achievements (and their tickets), lost Pokémon joining you.
 ##
 ## Fixed dt = 1/60 like sim_smoke.gd; bot runs never touch the save. Internal: --child=<file> makes
 ## this process a worker that appends one JSON line per run to <file> (--account=<file>: campaign).
@@ -69,17 +81,30 @@ const TXT := {
 		"line": "  %-7s seed %3d  %7s %s  lv %2d  kills %4d  bosses %d  coins %4d  last hit %-16s %s",
 		"dead": "fainted", "alive": "alive  ",
 		"csv": "play: %d rows -> %s", "done": "play: done in %.1f s",
-		"c_head": "campaign: partner %s (dex %d), %d accounts per profile, %d more runs each, %d parallel jobs%s",
+		"c_head": "campaign: starter %s (dex %d), %d accounts per profile, %d more runs each, %d parallel jobs%s",
 		"c_keep": ", accounts kept in %s", "c_only": "campaign report of the accounts saved in %s", "c_resume": "  %s: continuing %d saved accounts (%d runs played so far in all)",
-		"c_title": "== %s ==  %d accounts, %d runs each",
-		"c_cols": "  %-6s  %9s  %9s  %11s  %8s  %9s  %10s",
-		"c_cols_h": ["run", "played", "upgrades", "survived", "longest", "coins/run", "first boss"],
-		"c_row": "  %-6s  %8.1fh  %8d%%  %11s  %8s  %9.0f  %9d%%",
+		"c_title": "== %s ==  %d accounts, %d runs each · upgrades %s",
+		"c_rule": {"per_mon": "per Pokémon (the game's rule)", "shared": "shared by the whole account",
+			"family": "trainer + family levels, evolutions and shards (proposed)"},
+		"f_cols": "  %-6s  %9s  %8s  %8s  %11s  %8s  %9s  %10s  %6s  %8s",
+		"f_cols_h": ["run", "played", "trainer", "fam. lv", "survived", "longest", "coins/run", "first boss", "owned", "stage"],
+		"f_row": "  %-6s  %8.1fh  %7d%%  %8.1f  %11s  %8s  %9.0f  %9d%%  %6.1f  %8.1f",
+		"f_evo": "  first evolution: run %s (≈ %s of play) · %d/%d accounts",
+		"f_evo_no": "  first evolution: not yet (0/%d accounts)",
+		"f_fin": "  final form (2nd evolution): run %s (≈ %s of play) · %d/%d accounts",
+		"f_fin_no": "  final form (2nd evolution): not yet (0/%d accounts)",
+		"f_tmax": "  trainer upgrades all bought: run %s (≈ %s of play) · %d/%d accounts",
+		"f_tmax_no": "  trainer upgrades all bought: not yet (0/%d accounts)",
+		"f_final": "  account %d: plays %s (%d*, stage %d), family level %d, %d stars, %d forms unlocked with shards, %d universal shards, owns %d, %d pulls, evolved %d times, switched family %d times, trainer %d%%, %d coins",
+		"c_cols": "  %-6s  %9s  %9s  %11s  %8s  %9s  %10s  %6s  %9s",
+		"c_cols_h": ["run", "played", "upgrades", "survived", "longest", "coins/run", "first boss", "owned", "switched"],
+		"c_row": "  %-6s  %8.1fh  %8d%%  %11s  %8s  %9.0f  %9d%%  %6.1f  %8d%%",
+		"c_final": "  account %d: plays %s (%d*), owns %d Pokémon, %d pulls, switched partner %d times",
 		"c_ms": "  first time lasting %s: run %s (≈ %s of play) · %d/%d accounts got there",
 		"c_ms_no": "  first time lasting %s: not yet (0/%d accounts)",
-		"c_max": "  all upgrades bought: run %s (≈ %s of play) · %d/%d accounts",
-		"c_max_no": "  all upgrades bought: not yet (0/%d accounts)",
-		"c_left": "  upgrades bought after %d runs: %d%% (median), coins in the wallet %d",
+		"c_max": "  partner's upgrades all bought: run %s (≈ %s of play) · %d/%d accounts",
+		"c_max_no": "  partner's upgrades all bought: not yet (0/%d accounts)",
+		"c_left": "  partner's upgrades after %d runs: %d%% (median), coins in the wallet %d",
 		"c_buy": "  account 1 bought first: ",
 		"c_none": "-", "c_hours": "%.1f h",
 	},
@@ -106,17 +131,30 @@ const TXT := {
 		"line": "  %-7s 种子 %3d  %7s %s  %2d 级  击杀 %4d  Boss %d  宝可梦币 %4d  致命一击 %-16s %s",
 		"dead": "倒下", "alive": "存活",
 		"csv": "试玩：%d 行 -> %s", "done": "试玩：用时 %.1f 秒",
-		"c_head": "养成模式：伙伴 %s（图鉴 %d），每档 %d 个账号，每个账号再玩 %d 局，并行 %d 个进程%s",
+		"c_head": "养成模式：初始伙伴 %s（图鉴 %d），每档 %d 个账号，每个账号再玩 %d 局，并行 %d 个进程%s",
 		"c_keep": "，账号存档在 %s", "c_only": "养成模式报告（只读存档，不玩新局）：%s", "c_resume": "  %s：接着 %d 个已存档的账号继续（之前一共玩了 %d 局）",
-		"c_title": "== %s ==  %d 个账号，每个玩了 %d 局",
-		"c_cols": "  %-6s  %9s  %9s  %11s  %8s  %9s  %10s",
-		"c_cols_h": ["第几局", "累计游戏", "强化进度", "平均坚持", "最长", "每局收入", "见到Boss"],
-		"c_row": "  %-6s  %8.1fh  %8d%%  %11s  %8s  %9.0f  %9d%%",
+		"c_title": "== %s ==  %d 个账号，每个玩了 %d 局 · 强化规则：%s",
+		"c_rule": {"per_mon": "每只宝可梦单独（游戏现行规则）", "shared": "整个账号共享",
+			"family": "训练家 + 家族等级、进化、碎片（新方案）"},
+		"f_cols": "  %-6s  %9s  %8s  %8s  %11s  %8s  %9s  %10s  %6s  %8s",
+		"f_cols_h": ["第几局", "累计游戏", "训练家", "家族等级", "平均坚持", "最长", "每局收入", "见到Boss", "拥有", "进化阶段"],
+		"f_row": "  %-6s  %8.1fh  %7d%%  %8.1f  %11s  %8s  %9.0f  %9d%%  %6.1f  %8.1f",
+		"f_evo": "  第一次进化：第 %s 局（约玩了 %s） · %d/%d 个账号做到",
+		"f_evo_no": "  第一次进化：还没有账号做到（0/%d）",
+		"f_fin": "  进化到最终形态（第二次进化）：第 %s 局（约玩了 %s） · %d/%d 个账号做到",
+		"f_fin_no": "  进化到最终形态（第二次进化）：还没有账号做到（0/%d）",
+		"f_tmax": "  训练家强化全部点满：第 %s 局（约玩了 %s） · %d/%d 个账号做到",
+		"f_tmax_no": "  训练家强化全部点满：还没有账号做到（0/%d）",
+		"f_final": "  账号 %d：现在用 %s（%d 星，第 %d 阶段），家族 %d 级，突破 %d 次，碎片解锁 %d 个形态，万能碎片 %d，拥有 %d 只，抽了 %d 次，进化 %d 次，换家族 %d 次，训练家 %d%%，钱包 %d 币",
+		"c_cols": "  %-6s  %9s  %9s  %11s  %8s  %9s  %10s  %6s  %9s",
+		"c_cols_h": ["第几局", "累计游戏", "强化进度", "平均坚持", "最长", "每局收入", "见到Boss", "拥有", "已换伙伴"],
+		"c_row": "  %-6s  %8.1fh  %8d%%  %11s  %8s  %9.0f  %9d%%  %6.1f  %8d%%",
+		"c_final": "  账号 %d：现在用 %s（%d 星），拥有 %d 只宝可梦，抽了 %d 次，换过 %d 次伙伴",
 		"c_ms": "  第一次坚持到 %s：第 %s 局（约玩了 %s） · %d/%d 个账号做到",
 		"c_ms_no": "  第一次坚持到 %s：还没有账号做到（0/%d）",
-		"c_max": "  强化全部点满：第 %s 局（约玩了 %s） · %d/%d 个账号做到",
-		"c_max_no": "  强化全部点满：还没有账号做到（0/%d）",
-		"c_left": "  玩了 %d 局后强化进度 %d%%（中位数），钱包里还有 %d 币",
+		"c_max": "  当前伙伴强化全部点满：第 %s 局（约玩了 %s） · %d/%d 个账号做到",
+		"c_max_no": "  当前伙伴强化全部点满：还没有账号做到（0/%d）",
+		"c_left": "  玩了 %d 局后当前伙伴的强化进度 %d%%（中位数），钱包里还有 %d 币",
 		"c_buy": "  账号 1 最先买的强化：",
 		"c_none": "-", "c_hours": "%.1f 小时",
 	},
@@ -128,6 +166,7 @@ const ZH_SRC := {"touch": "撞击", "shot": "子弹", "hazard": "预警攻击", 
 	"healer": "治疗怪", "shielder": "护盾怪", "summoner": "召唤怪", "zone": "圆圈", "beam": "射线"}
 
 var _lang := "en"
+var _learnset_lv := 0
 var _trace := 0.0
 var _prof := false
 var _bot_us := 0
@@ -149,6 +188,11 @@ func _initialize() -> void:
 	_lang = "zh" if str(args.get("lang", "")) == "zh" else "en"
 	_trace = float(args.get("trace", "0")) if str(args.get("trace", "")) != "" else 0.0
 	_prof = args.has("prof")
+	_learnset_lv = int(args.get("learnset", "0"))
+	if args.has("rules-set"):
+		var bad_r := FamilyRules.set_overrides(str(args["rules-set"]))
+		if not bad_r.is_empty():
+			push_error("--rules-set: unknown " + str(bad_r))
 	if args.has("bot-set"):
 		var bad := Bot.set_overrides(str(args["bot-set"]))
 		if not bad.is_empty():
@@ -270,9 +314,9 @@ func _parallel(args: Dictionary, profiles: Array, runs: int, seed0: int, jobs: i
 ## The options every worker gets as they were given here.
 static func _pass_on(args: Dictionary) -> Array:
 	var out: Array = []
-	for key in ["partner", "upg", "max", "bot-set"]:
+	for key in ["partner", "upg", "max", "bot-set", "shared-upg", "rules", "rules-set", "learnset"]:
 		if args.has(key):
-			out.append("--%s=%s" % [key, args[key]])
+			out.append(("--%s=%s" % [key, args[key]]) if str(args[key]) != "" else "--" + key)
 	return out
 
 static func _tmp_dir() -> String:
@@ -340,12 +384,23 @@ static func _count_lines(path: String) -> int:
 
 # ---------------- one run ----------------
 
-## One run until it faints (or max_t). opts: Sim.start_run options (perks, ban).
+## One run until it faints (or max_t). opts: Sim.start_run options (perks, ban), plus
+## start_moves: [ids] it starts with · pool: [ids] the level-up cards may offer (family rules).
 func _play(seed_: int, partner: int, max_t: float, opts: Dictionary) -> Dictionary:
 	seed(seed_)
 	var sim := Sim.new()
 	sim.render = false
+	if _learnset_lv > 0 and not opts.has("pool"):
+		var acc := {"fams": {str(FamilyRules.fam_of(partner)): {"lv": _learnset_lv, "xp": 0.0, "shards": 0, "stars": 0}}}
+		var mv := FamilyRules.moves_of(acc, partner)
+		opts = opts.duplicate()
+		opts["start_moves"] = FamilyRules.start_moves(acc, partner, mv)
+		opts["pool"] = mv.map(func(e): return e[0])
+	if opts.has("start_moves"):
+		sim.debug = {"moves": opts["start_moves"]}
 	sim.start_run(partner, seed_, opts)
+	if opts.has("pool"):
+		sim.player.move_pool = opts["pool"]
 	var boss1 := float(sim.defs.bosses[0]["at"]) if not sim.defs.bosses.is_empty() else 180.0
 	var dt := 1.0 / 60.0
 	var lv := {}
@@ -407,6 +462,7 @@ func _play(seed_: int, partner: int, max_t: float, opts: Dictionary) -> Dictiona
 	return {"seed": seed_, "time": sim.time, "dead": dead, "level": pl.level, "kills": pl.kills,
 		"bosses": pl.bosses, "saw_boss": sim.time >= boss1,
 		"coins": int(Meta.run_coins(sim.time, pl.kills, pl.bosses, pl.coins, pl.coin_mul)["coins"]),
+		"t1": pl.t1, "t10": pl.t10,
 		"last_hit": pl.last_hit if dead else "", "dmg": pl.dmg_log.duplicate(), "lv": lv, "moves": " ".join(mv),
 		"turns": turns / maxf(sim.time, 1.0), "still": float(still) / maxf(frames, 1), "gap": gap_sum / maxf(gap_n, 1),
 		"chests": int(sim.interact.stats["chest"]), "altars": int(sim.interact.stats["altar"]),
@@ -446,14 +502,47 @@ func _trace_line(sim: Sim) -> void:
 
 # ---------------- campaign: accounts that grow run after run ----------------
 
-## The saved account at `path` (same profile and partner) or a new one: 500 coins, no upgrades.
-static func _load_account(path: String, profile: String, partner: int, seed_: int) -> Dictionary:
+## The saved account at `path` (same profile, starter and upgrade rule) or a new one: 500 coins, no
+## upgrades, the starter as its only Pokémon. rule: "per_mon" (the game) or "shared".
+##   {profile, start, partner, rule, coins, levels_by: {dex or "all": levels}, gacha: Gacha save,
+##    runs, play_s, spent, switches, next_seed, hist: [one summary per run]}
+static func _load_account(path: String, profile: String, start: int, seed_: int, rule: String) -> Dictionary:
 	if FileAccess.file_exists(path):
 		var a: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
-		if a is Dictionary and a.get("profile") == profile and int(a.get("partner", 0)) == partner:
-			return a
-	return {"profile": profile, "partner": partner, "coins": Save.START_COINS, "levels": {}, "runs": 0,
-		"play_s": 0.0, "spent": 0, "next_seed": seed_, "hist": []}
+		if a is Dictionary and a.get("profile") == profile:
+			if not a.has("levels_by"):           # saved before gacha / rules: one partner, per Pokémon
+				a["start"] = int(a["partner"])
+				a["rule"] = "per_mon"
+				a["levels_by"] = {str(int(a["partner"])): a.get("levels", {})}
+				a.erase("levels")
+				a["gacha"] = _new_gacha(int(a["partner"]))
+				a["switches"] = 0
+			if int(a["start"]) == start and a["rule"] == rule:
+				return a
+	if rule == "family":
+		return {"profile": profile, "start": start, "partner": start, "rule": rule, "coins": Save.START_COINS,
+			"trainer": {}, "fams": {}, "uni": 0, "gacha": _new_gacha(start), "runs": 0, "play_s": 0.0, "spent": 0,
+			"switches": 0, "evos": 0, "next_seed": seed_, "hist": []}
+	return {"profile": profile, "start": start, "partner": start, "rule": rule, "coins": Save.START_COINS,
+		"levels_by": {}, "gacha": _new_gacha(start), "runs": 0, "play_s": 0.0, "spent": 0, "switches": 0,
+		"next_seed": seed_, "hist": []}
+
+## --rules (or the older --shared-upg): per_mon | shared | family.
+static func _rule_of(args: Dictionary) -> String:
+	var r := str(args.get("rules", "shared" if args.has("shared-upg") else "per_mon"))
+	return r if ["per_mon", "shared", "family"].has(r) else "per_mon"
+
+static func _new_gacha(start: int) -> Dictionary:
+	return {"tickets": {"t1": 0, "t10": 0}, "pity": {}, "shiny": {}, "owned": {str(start): {"at": 0, "from": "start"}},
+		"coins": 0, "stats": {"pulls": 0}}
+
+## The upgrade levels a Pokémon of this account runs with (created on demand; "all" when shared).
+static func _levels_of(acc: Dictionary, dex: int) -> Dictionary:
+	var key := "all" if acc["rule"] == "shared" else str(dex)
+	var by: Dictionary = acc["levels_by"]
+	if not by.has(key):
+		by[key] = {}
+	return by[key]
 
 static func _save_account(path: String, acc: Dictionary) -> void:
 	var f := FileAccess.open(path + ".tmp", FileAccess.WRITE)
@@ -461,25 +550,113 @@ static func _save_account(path: String, acc: Dictionary) -> void:
 	f.close()
 	DirAccess.rename_absolute(path + ".tmp", path)
 
-## Worker: one account plays --campaign runs; after each one it banks the coins, shops, saves.
-func _campaign_child(args: Dictionary, partner: int, max_t: float) -> void:
+## Worker: one account plays --campaign runs; after each one it banks the coins and tickets, pulls,
+## maybe switches partner, buys upgrades for the partner of the next run, saves.
+func _campaign_child(args: Dictionary, start: int, max_t: float) -> void:
 	var path := str(args["account"])
-	var acc := _load_account(path, Bot.profile, partner, int(args.get("seed", "1")))
+	var rule := _rule_of(args)
+	var acc := _load_account(path, Bot.profile, start, int(args.get("seed", "1")), rule)
 	var out := FileAccess.open(str(args["child"]), FileAccess.WRITE)
-	var bans := Bot.bans_for(Data.dex_by[partner])
+	var gen := int(Data.dex_by[start]["gen"])          # the starter's banner (its pity builds up)
+	var rng := RandomNumberGenerator.new()
+	if rule == "family":
+		_family_child(args, acc, path, out, gen, rng, max_t)
+		return
+	var lv_of := func(d: int) -> Dictionary: return _levels_of(acc, d)
 	for i in int(args["campaign"]):
-		var lv: Dictionary = acc["levels"]
-		var r := _play(int(acc["next_seed"]), partner, max_t, {"perks": Upgrades.perks(lv), "ban": bans})
+		var dex := int(acc["partner"])
+		var r := _play(int(acc["next_seed"]), dex, max_t,
+			{"perks": Upgrades.perks(_levels_of(acc, dex)), "ban": Bot.bans_for(Data.dex_by[dex])})
+		rng.seed = hash("gacha %d %s" % [int(acc["next_seed"]), Bot.profile])
 		acc["next_seed"] = int(acc["next_seed"]) + 1
 		acc["runs"] = int(acc["runs"]) + 1
 		acc["play_s"] = float(acc["play_s"]) + float(r["time"])
-		var wallet := int(acc["coins"]) + int(r["coins"])
-		var sh := Bot.shop(lv, wallet, bans.size())
+		# gacha: the tickets picked up this run, duplicates refund coins into the wallet
+		var g: Dictionary = acc["gacha"]
+		g["tickets"]["t1"] = int(g["tickets"]["t1"]) + int(r["t1"])
+		g["tickets"]["t10"] = int(g["tickets"]["t10"]) + int(r["t10"])
+		g["coins"] = int(acc["coins"]) + int(r["coins"])
+		var got := Bot.gacha(g, gen, rng)
+		var wallet := int(g["coins"])
+		g["coins"] = 0
+		var owned: Array = (g["owned"] as Dictionary).keys().map(func(k): return int(k)).filter(func(d): return Data.dex_by.has(d))
+		var next := Bot.choose_partner(owned, dex, got, func(d: int) -> float: return Bot.power(Data.dex_by[d], lv_of.call(d)))
+		if next != dex:
+			acc["switches"] = int(acc["switches"]) + 1
+		acc["partner"] = next
+		# upgrades for the Pokémon of the next run
+		var lv := _levels_of(acc, next)
+		var sh := Bot.shop(lv, wallet, Bot.bans_for(Data.dex_by[next]).size())
 		acc["spent"] = int(acc["spent"]) + wallet - int(sh["coins"])
 		acc["coins"] = int(sh["coins"])
 		var h := {"run": acc["runs"], "t": r["time"], "kills": r["kills"], "coins": r["coins"], "level": r["level"],
 			"bosses": r["bosses"], "saw_boss": r["saw_boss"], "play_s": acc["play_s"], "spent": acc["spent"],
-			"bought": sh["bought"], "last_hit": r["last_hit"]}
+			"bought": sh["bought"], "last_hit": r["last_hit"], "partner": dex, "next": next,
+			"upg": _upgrades_left({}) - _upgrades_left(lv), "owned": owned.size(),
+			"pulls": int(g["stats"]["pulls"]), "t1": r["t1"], "t10": r["t10"],
+			"got": got.filter(func(x): return x["isNew"] and int(x["rarity"]) >= 4).map(func(x): return int(x["dex"]))}
+		(acc["hist"] as Array).append(h)
+		out.store_line(JSON.stringify(h))
+		out.flush()
+		_save_account(path, acc)
+	out.close()
+
+## Worker, --rules=family (debug/family_rules.gd): the run uses the family's moves and perks; after
+## it the family gains XP, the tickets are pulled, duplicates become shards, shards unlock forms /
+## stars, the partner evolves (any player does) or switches, and the coins buy trainer upgrades.
+func _family_child(args: Dictionary, acc: Dictionary, path: String, out: FileAccess, gen: int,
+		rng: RandomNumberGenerator, max_t: float) -> void:
+	var F := FamilyRules
+	var t_total := F.trainer_total()
+	for i in int(args["campaign"]):
+		var dex := int(acc["partner"])
+		var mv := F.moves_of(acc, dex)
+		var r := _play(int(acc["next_seed"]), dex, max_t, {"perks": F.perks(acc, dex),
+			"start_moves": F.start_moves(acc, dex, mv), "pool": mv.map(func(e): return e[0])})
+		rng.seed = hash("gacha %d %s" % [int(acc["next_seed"]), Bot.profile])
+		acc["next_seed"] = int(acc["next_seed"]) + 1
+		acc["runs"] = int(acc["runs"]) + 1
+		acc["play_s"] = float(acc["play_s"]) + float(r["time"])
+		var ups := F.gain_xp(acc, dex, r)
+		# gacha: duplicates become shards (their coin refund is taken back unless R.refund)
+		var g: Dictionary = acc["gacha"]
+		g["tickets"]["t1"] = int(g["tickets"]["t1"]) + int(r["t1"])
+		g["tickets"]["t10"] = int(g["tickets"]["t10"]) + int(r["t10"])
+		g["coins"] = int(acc["coins"]) + int(r["coins"])
+		var got := Bot.gacha(g, gen, rng)
+		var wallet := int(g["coins"]) - F.shards_from(acc, dex, got)
+		g["coins"] = 0
+		var unlocked := F.spend_shards(acc, dex)
+		# evolve when a later form of the partner can be used (the strongest), else maybe switch
+		var next := dex
+		for d in F.members(F.fam_of(dex)):
+			if d != dex and Data.dex_by.has(d) and F.chain(d).has(dex) and F.usable(acc, d) \
+					and (next == dex or F.stage(d) > F.stage(next) or (F.stage(d) == F.stage(next)
+					and int(Data.dex_by[d]["bst"]) > int(Data.dex_by[next]["bst"]))):
+				next = d
+		if next != dex:
+			acc["evos"] = int(acc["evos"]) + 1
+		else:
+			var fresh: Array = got.filter(func(x): return x["isNew"] and F.usable(acc, int(x["dex"])))
+			for d in unlocked:
+				fresh.append({"dex": d, "rarity": int(Data.dex_by[d]["rarity"]), "isNew": true})
+			next = Bot.choose_partner(F.usable_list(acc), dex, fresh, func(d: int) -> float: return F.power(acc, d))
+			if next != dex:
+				acc["switches"] = int(acc["switches"]) + 1
+		acc["partner"] = next
+		# coins: trainer upgrades only
+		var sh := Bot.shop(acc["trainer"], wallet, 0, F.R["trainer"])
+		acc["spent"] = int(acc["spent"]) + wallet - int(sh["coins"])
+		acc["coins"] = int(sh["coins"])
+		var fm := F.fam(acc, F.fam_of(next))
+		var h := {"run": acc["runs"], "t": r["time"], "kills": r["kills"], "coins": r["coins"], "level": r["level"],
+			"bosses": r["bosses"], "saw_boss": r["saw_boss"], "play_s": acc["play_s"], "spent": acc["spent"],
+			"bought": sh["bought"], "last_hit": r["last_hit"], "partner": dex, "next": next,
+			"owned": (g["owned"] as Dictionary).size(), "pulls": int(g["stats"]["pulls"]), "t1": r["t1"], "t10": r["t10"],
+			"flv": int(fm["lv"]), "ups": ups, "stage": F.stage(next), "final": F.is_final(next),
+			"rar": int(Data.dex_by[next]["rarity"]), "tp": float(F.trainer_spent(acc["trainer"])) / t_total,
+			"uni": int(acc.get("uni", 0)), "fsh": int(fm["shards"]), "stars": int(fm["stars"]),
+			"unlocked": unlocked, "moves": mv.size()}
 		(acc["hist"] as Array).append(h)
 		out.store_line(JSON.stringify(h))
 		out.flush()
@@ -502,6 +679,8 @@ func _campaign(args: Dictionary, profiles: Array, partner: int, seed0: int, jobs
 		print(_t("c_head") % [Data.dex_by[partner]["name"], partner, accounts, n, jobs, (_t("c_keep") % dir) if keep != "" else ""])
 	if not Bot.overrides.is_empty():
 		print("play: profile overrides " + str(Bot.overrides))
+	var rule := _rule_of(args)
+	var suffix := "" if rule == "per_mon" else "_" + rule
 	var tasks: Array = []
 	var totals := {}
 	for prof in profiles:
@@ -509,8 +688,8 @@ func _campaign(args: Dictionary, profiles: Array, partner: int, seed0: int, jobs
 		var old := 0
 		var had := 0
 		for k in accounts:
-			var path := dir.path_join("%s_%d.json" % [prof, k + 1])
-			var a := _load_account(path, prof, partner, 0)
+			var path := dir.path_join("%s_%d%s.json" % [prof, k + 1, suffix])
+			var a := _load_account(path, prof, partner, 0, rule)
 			if int(a["runs"]) > 0:
 				had += 1
 				old += int(a["runs"])
@@ -524,7 +703,7 @@ func _campaign(args: Dictionary, profiles: Array, partner: int, seed0: int, jobs
 	for prof in profiles:
 		var accs: Array = []
 		for k in accounts:
-			var path := dir.path_join("%s_%d.json" % [prof, k + 1])
+			var path := dir.path_join("%s_%d%s.json" % [prof, k + 1, suffix])
 			if FileAccess.file_exists(path):
 				accs.append(JSON.parse_string(FileAccess.get_file_as_string(path)))
 		if not accs.is_empty():
@@ -539,7 +718,10 @@ func _campaign_report(prof: String, accs: Array) -> void:
 	for a in accs:
 		runs = maxi(runs, (a["hist"] as Array).size())
 	print("")
-	print(_t("c_title") % [prof, K, runs])
+	print(_t("c_title") % [prof, K, runs, TXT[_lang]["c_rule"][str(accs[0].get("rule", "per_mon"))]])
+	if accs[0].get("rule", "") == "family":
+		_family_report(accs, runs)
+		return
 	var hdr: Array = _t_arr("c_cols_h")
 	print(_t("c_cols") % hdr)
 	var rows_at: Array = CHECKPOINTS.filter(func(c): return c < runs)
@@ -554,13 +736,19 @@ func _campaign_report(prof: String, accs: Array) -> void:
 		var spent := 0.0
 		var best := 0.0
 		var na := 0
+		var owned := 0.0
+		var moved := 0
 		for a in accs:
 			var h: Array = a["hist"]
 			if h.size() < c:
 				continue
 			na += 1
 			hours += float(h[c - 1]["play_s"]) / 3600.0
-			spent += float(h[c - 1]["spent"])
+			# upgrades of the partner the next run uses (older saves: everything spent)
+			spent += float(h[c - 1].get("upg", h[c - 1]["spent"]))
+			owned += float(h[c - 1].get("owned", 1))
+			if int(h[c - 1].get("next", a.get("start", 0))) != int(a.get("start", 0)):
+				moved += 1
 			for j in range(c - w, c):
 				ts.append(float(h[j]["t"]))
 				coins += float(h[j]["coins"])
@@ -573,7 +761,7 @@ func _campaign_report(prof: String, accs: Array) -> void:
 			mean += t
 		mean /= ts.size()
 		print(_t("c_row") % [str(c), hours / na, int(100.0 * spent / na / total), _mmss(mean), _mmss(best),
-			coins / ts.size(), int(100.0 * saw / ts.size())])
+			coins / ts.size(), int(100.0 * saw / ts.size()), owned / na, int(100.0 * moved / na)])
 	for m in MILESTONES:
 		var at: Array = []
 		var hrs: Array = []
@@ -592,10 +780,11 @@ func _campaign_report(prof: String, accs: Array) -> void:
 	var pct: Array = []
 	var wallet: Array = []
 	for a in accs:
-		pct.append(100.0 * float(a["spent"]) / total)
+		var last: Dictionary = (a["hist"] as Array).back() if not (a["hist"] as Array).is_empty() else {}
+		pct.append(100.0 * float(last.get("upg", a["spent"])) / total)
 		wallet.append(float(a["coins"]))
 		for h in a["hist"]:
-			if float(h["spent"]) >= total:
+			if float(h.get("upg", h["spent"])) >= total:
 				at_max.append(int(h["run"]))
 				hrs_max.append(float(h["play_s"]) / 3600.0)
 				break
@@ -610,6 +799,87 @@ func _campaign_report(prof: String, accs: Array) -> void:
 			if first.size() < 14:
 				first.append("%s(%d)" % [_upg_name(id), int(h["run"])])
 	print(_t("c_buy") + (", ".join(first) if not first.is_empty() else _t("c_none")))
+	for k in K:
+		var a: Dictionary = accs[k]
+		var d := int(a.get("partner", a.get("start", 0)))
+		var g: Dictionary = a.get("gacha", {})
+		print(_t("c_final") % [k + 1, Data.dex_by[d]["name"], int(Data.dex_by[d]["rarity"]),
+			(g.get("owned", {}) as Dictionary).size(), int(g.get("stats", {}).get("pulls", 0)), int(a.get("switches", 0))])
+
+## Progression curve of family-rule accounts: trainer upgrades bought, the partner's family level
+## and stage, survival and coins at run 1, 5, 10..., then the milestones and each account.
+func _family_report(accs: Array, runs: int) -> void:
+	var K := accs.size()
+	print(_t("f_cols") % _t_arr("f_cols_h"))
+	var rows_at: Array = CHECKPOINTS.filter(func(c): return c < runs)
+	rows_at.append(runs)
+	for c: int in rows_at:
+		var w := maxi(1, int(c * 0.2))
+		var ts: Array[float] = []
+		var coins := 0.0
+		var saw := 0
+		var best := 0.0
+		var na := 0
+		var sums := {"hours": 0.0, "tp": 0.0, "flv": 0.0, "owned": 0.0, "stage": 0.0}
+		for a in accs:
+			var h: Array = a["hist"]
+			if h.size() < c:
+				continue
+			na += 1
+			var e: Dictionary = h[c - 1]
+			sums["hours"] += float(e["play_s"]) / 3600.0
+			sums["tp"] += float(e["tp"])
+			sums["flv"] += float(e["flv"])
+			sums["owned"] += float(e["owned"])
+			sums["stage"] += float(e["stage"])
+			for j in range(c - w, c):
+				ts.append(float(h[j]["t"]))
+				coins += float(h[j]["coins"])
+				saw += int(h[j]["saw_boss"])
+				best = maxf(best, float(h[j]["t"]))
+		if ts.is_empty():
+			continue
+		var mean := 0.0
+		for t in ts:
+			mean += t
+		mean /= ts.size()
+		print(_t("f_row") % [str(c), sums["hours"] / na, int(100.0 * sums["tp"] / na), sums["flv"] / na, _mmss(mean),
+			_mmss(best), coins / ts.size(), int(100.0 * saw / ts.size()), sums["owned"] / na, sums["stage"] / na])
+	# milestones: lasting 3 / 5 / 10 min, first evolution, final form, trainer maxed
+	var first := func(test: Callable) -> Array:
+		var at: Array = []
+		var hrs: Array = []
+		for a in accs:
+			for h in a["hist"]:
+				if test.call(h):
+					at.append(int(h["run"]))
+					hrs.append(float(h["play_s"]) / 3600.0)
+					break
+		return [at, hrs]
+	var line := func(key: String, res: Array, extra: Variant = null) -> void:
+		var at: Array = res[0]
+		if at.is_empty():
+			print(_t(key + "_no") % ([extra, K] if extra != null else K))
+		else:
+			var args: Array = [_num(_median(at)), _t("c_hours") % _median(res[1]), at.size(), K]
+			print(_t(key) % (([extra] + args) if extra != null else args))
+	for m in MILESTONES:
+		line.call("c_ms", first.call(func(h): return float(h["t"]) >= m), _mmss(m))
+	line.call("f_evo", first.call(func(h): return int(h["stage"]) >= 1))
+	line.call("f_fin", first.call(func(h): return int(h["stage"]) >= 2))
+	line.call("f_tmax", first.call(func(h): return float(h["tp"]) >= 0.999))
+	for k in K:
+		var a: Dictionary = accs[k]
+		var d := int(a["partner"])
+		var fm: Dictionary = FamilyRules.fam(a, FamilyRules.fam_of(d))
+		var n_unl := 0
+		for h in a["hist"]:
+			n_unl += (h.get("unlocked", []) as Array).size()
+		var last: Dictionary = (a["hist"] as Array).back() if not (a["hist"] as Array).is_empty() else {}
+		print(_t("f_final") % [k + 1, Data.dex_by[d]["name"], int(Data.dex_by[d]["rarity"]), FamilyRules.stage(d),
+			int(fm["lv"]), int(fm["stars"]), n_unl, int(a.get("uni", 0)), (a["gacha"]["owned"] as Dictionary).size(),
+			int(a["gacha"]["stats"]["pulls"]), int(a.get("evos", 0)), int(a.get("switches", 0)),
+			int(100.0 * float(last.get("tp", 0.0))), int(a["coins"])])
 
 func _t_arr(key: String) -> Array:
 	return TXT[_lang][key]

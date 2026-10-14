@@ -47,7 +47,7 @@ static func candidates(pl: Player) -> Array:
 			if m["kind"] == "buff":
 				buffs += 1
 		var pool: Array = []
-		for id in Moves.pool_for(pl.mon):
+		for id in (pl.move_pool if not pl.move_pool.is_empty() else Moves.pool_for(pl.mon)):
 			var d := Moves.def(id)
 			if pl.has_move(id) or pl.banned.has(id):
 				continue

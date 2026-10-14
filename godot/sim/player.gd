@@ -68,6 +68,9 @@ var sash_t := -999999            # last time (ms, wall clock like JS) the Focus 
 var last_patch: WeakRef = null  # last trail patch (Combat.Field; weak: the field refers back to us)
 var bell_heal := 0.0
 var stats_taken: Dictionary = {}
+## Moves the level-up cards may offer as new moves; empty = Moves.pool_for (its types, like JS).
+## Set by tests/sim_play.gd --rules=family (moves of the family's learnset at its level).
+var move_pool: Array = []
 ## HP lost this run by source (`src` of hurt(): "touch:<behavior>", "boss", "shot", "hazard:<who>",
 ## "trap", "lava", "weather") and the source of the last hit. Bookkeeping only (tests/sim_play.gd).
 var dmg_log: Dictionary = {}

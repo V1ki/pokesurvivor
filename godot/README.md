@@ -170,7 +170,30 @@ next seed, every run's summary); running `--campaign` again with the same dir co
 report is the progression curve per profile (at run 1, 5, 10, 20, 30, 50, 75, 100, ...: hours
 played, share of the 40,000 upgrade coins spent, survival mean and longest, coins per run, first
 boss reached), when the accounts first last 3 / 5 / 10 min and buy every upgrade (median run and
-hours) and the first purchases. Gacha (other partners), missions and achievements are not simulated.
+hours) and the first purchases. Between runs the account also spends the gacha tickets it picked up
+(`Bot.gacha` on the starter's generation banner, so the pity builds up: the novice pulls every ticket
+at once, casual / expert only x10 pulls; duplicates refund coins) and may switch partner
+(`Bot.choose_partner`: the novice jumps to a new Epic / Legendary rarer than its partner, the casual
+player to a new Epic / Legendary unless it is clearly weaker with its upgrades, the expert always plays
+the strongest by `Bot.power`, base stats × upgrades). `--rules` picks the progression:
+- `per_mon` (default, the game's): coin upgrades **per Pokémon** (a new partner starts from zero);
+- `shared` (or `--shared-upg`): the same coin upgrades **shared by the whole account**;
+- `family`: the proposed one (`debug/family_rules.gd`, `FamilyRules.DEFAULTS` holds every number,
+  `--rules-set=k=v,...` changes them). Coins buy **trainer upgrades** for every Pokémon (hp, def, regen,
+  spd, magnet, xp, coins, reroll); each **evolution family** (`data/evolutions.json`) has a level earned
+  by playing any of its forms, which gives what the per-Pokémon damage / cooldown / crit / 2nd-move
+  upgrades gave and unlocks its learnset (`data/learnsets.json`: the run starts with the first learned
+  attack and the cards offer only learned moves); a form is used once the family reaches its evolution
+  level (original or estimated from base stats) and the form is owned: pulled, or unlocked with
+  **shards** (a duplicate of the partner's family gives its shards, any other duplicate universal ones,
+  2 per shard); a complete family turns shards into **stars**. Any player evolves as soon as it can.
+
+Each rule's accounts are saved apart (`<profile>_<k>.json`, `_shared.json`, `_family.json`), so all can
+share one `--save-dir`. The report also shows Pokémon owned and the share of accounts playing another
+partner (family: trainer progress, family level, stage, first evolution, final form) and each account.
+Missions and achievements (and their tickets) are not simulated. In the batch mode,
+`--learnset=<family level>` gives the partner its learnset at that level instead of its type pool (no
+upgrades), to measure the move system alone.
 `--campaign=0` with the same `--save-dir` only prints that report (accounts are saved after every run,
 so this works while a campaign is still playing them).
 
