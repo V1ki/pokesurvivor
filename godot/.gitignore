@@ -1,0 +1,10 @@
+# Godot 4 generated cache
+.godot/
+/android/
+# Export artifacts
+build/
+*.apk
+*.aab
+# Generated sprite subset: run `node godot/tools/sync_sprites.js` (see README)
+/assets/pokemon/
+.DS_Store
