@@ -22,10 +22,25 @@ extends SceneTree
 ##   --trace=<s>    (forces --jobs=1; use one profile and --runs=1) a line every s seconds: HP, level,
 ##                  enemies near, closest one, active move, the bot's direction
 ##   --prof         (forces --jobs=1) time per frame: bot vs Sim.update and its sections
+##
+## Campaign (an account that grows): --campaign=<n> [--accounts=4] [--save-dir=<dir>]
+##   every account starts like a new one (500 coins, no upgrades) and plays n runs in a row; after
+##   each run its coins go to the partner's permanent upgrades, bought the way that profile's player
+##   would (Bot.shop; Veto blocks the buff moves), and the next run starts with them. Accounts run in
+##   parallel (one worker each); --save-dir keeps each one in <dir>/<profile>_<k>.json, and the next
+##   --campaign with the same dir CONTINUES those accounts instead of starting over. The report is
+##   the progression curve (survival, coins, upgrades, hours played at run 1, 5, 10, 20, 50, 100...),
+##   when an account first lasts 3 / 5 / 10 min, when everything is maxed, and what it bought first.
+##   --campaign=0 --save-dir=<dir> only prints the report of the saved accounts (even while another
+##   campaign is still playing them: they are saved after every run).
+##   Not simulated: gacha (other partners), missions, achievements.
+##
 ## Fixed dt = 1/60 like sim_smoke.gd; bot runs never touch the save. Internal: --child=<file> makes
-## this process a worker that appends one JSON line per run to <file>.
+## this process a worker that appends one JSON line per run to <file> (--account=<file>: campaign).
 
 const MARKS := [60.0, 180.0, 300.0, 600.0]
+const CHECKPOINTS := [1, 5, 10, 20, 30, 50, 75, 100, 150, 200, 300, 400, 500, 750, 1000, 1500, 2000]
+const MILESTONES := [180.0, 300.0, 600.0]
 const SAFETY_T := 4.0 * 3600.0
 const BUCKETS := [60.0, 120.0, 180.0, 300.0, 600.0]     # survival histogram edges (s)
 
@@ -54,6 +69,19 @@ const TXT := {
 		"line": "  %-7s seed %3d  %7s %s  lv %2d  kills %4d  bosses %d  coins %4d  last hit %-16s %s",
 		"dead": "fainted", "alive": "alive  ",
 		"csv": "play: %d rows -> %s", "done": "play: done in %.1f s",
+		"c_head": "campaign: partner %s (dex %d), %d accounts per profile, %d more runs each, %d parallel jobs%s",
+		"c_keep": ", accounts kept in %s", "c_only": "campaign report of the accounts saved in %s", "c_resume": "  %s: continuing %d saved accounts (%d runs played so far in all)",
+		"c_title": "== %s ==  %d accounts, %d runs each",
+		"c_cols": "  %-6s  %9s  %9s  %11s  %8s  %9s  %10s",
+		"c_cols_h": ["run", "played", "upgrades", "survived", "longest", "coins/run", "first boss"],
+		"c_row": "  %-6s  %8.1fh  %8d%%  %11s  %8s  %9.0f  %9d%%",
+		"c_ms": "  first time lasting %s: run %s (≈ %s of play) · %d/%d accounts got there",
+		"c_ms_no": "  first time lasting %s: not yet (0/%d accounts)",
+		"c_max": "  all upgrades bought: run %s (≈ %s of play) · %d/%d accounts",
+		"c_max_no": "  all upgrades bought: not yet (0/%d accounts)",
+		"c_left": "  upgrades bought after %d runs: %d%% (median), coins in the wallet %d",
+		"c_buy": "  account 1 bought first: ",
+		"c_none": "-", "c_hours": "%.1f h",
 	},
 	"zh": {
 		"head": "试玩：伙伴 %s（图鉴 %d），每档 %d 局，种子从 %d 开始，永久强化 %d%%，%s，并行 %d 个进程",
@@ -78,6 +106,19 @@ const TXT := {
 		"line": "  %-7s 种子 %3d  %7s %s  %2d 级  击杀 %4d  Boss %d  宝可梦币 %4d  致命一击 %-16s %s",
 		"dead": "倒下", "alive": "存活",
 		"csv": "试玩：%d 行 -> %s", "done": "试玩：用时 %.1f 秒",
+		"c_head": "养成模式：伙伴 %s（图鉴 %d），每档 %d 个账号，每个账号再玩 %d 局，并行 %d 个进程%s",
+		"c_keep": "，账号存档在 %s", "c_only": "养成模式报告（只读存档，不玩新局）：%s", "c_resume": "  %s：接着 %d 个已存档的账号继续（之前一共玩了 %d 局）",
+		"c_title": "== %s ==  %d 个账号，每个玩了 %d 局",
+		"c_cols": "  %-6s  %9s  %9s  %11s  %8s  %9s  %10s",
+		"c_cols_h": ["第几局", "累计游戏", "强化进度", "平均坚持", "最长", "每局收入", "见到Boss"],
+		"c_row": "  %-6s  %8.1fh  %8d%%  %11s  %8s  %9.0f  %9d%%",
+		"c_ms": "  第一次坚持到 %s：第 %s 局（约玩了 %s） · %d/%d 个账号做到",
+		"c_ms_no": "  第一次坚持到 %s：还没有账号做到（0/%d）",
+		"c_max": "  强化全部点满：第 %s 局（约玩了 %s） · %d/%d 个账号做到",
+		"c_max_no": "  强化全部点满：还没有账号做到（0/%d）",
+		"c_left": "  玩了 %d 局后强化进度 %d%%（中位数），钱包里还有 %d 币",
+		"c_buy": "  账号 1 最先买的强化：",
+		"c_none": "-", "c_hours": "%.1f 小时",
 	},
 }
 ## Damage sources in Chinese (the part before ":" and the enemy behaviors).
@@ -119,11 +160,16 @@ func _initialize() -> void:
 	Data.ensure()
 
 	# worker: play the given seeds of one profile, one JSON line per run
+	if args.has("child") and args.has("campaign"):
+		Bot.profile = str(args.get("bot", "casual"))
+		_campaign_child(args, partner, max_t)
+		quit(0)
+		return
 	if args.has("child"):
 		Bot.profile = str(args.get("bot", "casual"))
 		var f := FileAccess.open(str(args["child"]), FileAccess.WRITE)
 		for i in runs:
-			f.store_line(JSON.stringify(_play(seed0 + i, partner, max_t, perks)))
+			f.store_line(JSON.stringify(_play(seed0 + i, partner, max_t, {"perks": perks} if not perks.is_empty() else {})))
 			f.flush()
 		f.close()
 		quit(0)
@@ -138,6 +184,10 @@ func _initialize() -> void:
 	var jobs := clampi(int(args.get("jobs", str(clampi(OS.get_processor_count() - 2, 1, 12)))), 1, 64)
 	if _trace > 0.0 or _prof:
 		jobs = 1
+	if args.has("campaign"):
+		_campaign(args, profiles, partner, seed0, jobs)
+		quit(0)
+		return
 	jobs = mini(jobs, runs * profiles.size())
 	print(_t("head") % [Data.dex_by[partner]["name"], partner, runs, seed0, int(upg * 100.0),
 		_t("until") if max_t >= SAFETY_T else _t("max") % int(max_t), jobs])
@@ -152,7 +202,7 @@ func _initialize() -> void:
 			Bot.profile = prof
 			var R: Array = []
 			for i in runs:
-				R.append(_play(seed0 + i, partner, max_t, perks))
+				R.append(_play(seed0 + i, partner, max_t, {"perks": perks} if not perks.is_empty() else {}))
 			results[prof] = R
 	else:
 		results = _parallel(args, profiles, runs, seed0, jobs, t0)
@@ -195,73 +245,93 @@ func _initialize() -> void:
 ## Splits every profile's seeds into small blocks, keeps `jobs` headless Godots busy with them (a
 ## worker that finishes gets the next block) and gathers their JSON lines: {profile: [result]}.
 func _parallel(args: Dictionary, profiles: Array, runs: int, seed0: int, jobs: int, t0: int) -> Dictionary:
-	var dir := OS.get_cache_dir().path_join("pokesurvivor_sim_play_%d" % OS.get_process_id())
-	DirAccess.make_dir_recursive_absolute(dir)
+	var dir := _tmp_dir()
 	var block := clampi(int(ceil(runs * profiles.size() / float(jobs * 3))), 1, 8)
-	var queue: Array = []                     # [profile, first seed, runs]
+	var tasks: Array = []                     # [profile, jsonl file, worker args]
+	var totals := {}
 	for prof in profiles:
+		totals[prof] = runs
 		var s := 0
 		while s < runs:
 			var k := mini(block, runs - s)
-			queue.append([prof, seed0 + s, k])
+			tasks.append([prof, dir.path_join("w%04d.jsonl" % tasks.size()),
+				["--bot=" + str(prof), "--seed=%d" % (seed0 + s), "--runs=%d" % k] + _pass_on(args)])
 			s += k
-	var pass_on: Array = []
+	_pool(tasks, jobs, totals, t0, dir)
+	var out := {}
+	for task in tasks:
+		for r in _read_lines(task[1]):
+			if not out.has(task[0]):
+				out[task[0]] = []
+			out[task[0]].append(r)
+	_rm_dir(dir)
+	return out
+
+## The options every worker gets as they were given here.
+static func _pass_on(args: Dictionary) -> Array:
+	var out: Array = []
 	for key in ["partner", "upg", "max", "bot-set"]:
 		if args.has(key):
-			pass_on.append("--%s=%s" % [key, args[key]])
+			out.append("--%s=%s" % [key, args[key]])
+	return out
+
+static func _tmp_dir() -> String:
+	var dir := OS.get_cache_dir().path_join("pokesurvivor_sim_play_%d" % OS.get_process_id())
+	DirAccess.make_dir_recursive_absolute(dir)
+	return dir
+
+static func _rm_dir(dir: String) -> void:
+	for name in DirAccess.get_files_at(dir):
+		DirAccess.remove_absolute(dir.path_join(name))
+	DirAccess.remove_absolute(dir)
+
+static func _read_lines(path: String) -> Array:
+	var out: Array = []
+	var fa := FileAccess.open(path, FileAccess.READ)
+	if fa == null:
+		return out
+	while not fa.eof_reached():
+		var line := fa.get_line()
+		if line.strip_edges() != "":
+			var r: Variant = JSON.parse_string(line)
+			if r is Dictionary:
+				out.append(r)
+	fa.close()
+	return out
+
+## Runs the tasks ([label, jsonl file, worker args]) on `jobs` headless Godots (one task each, the
+## next one starts as soon as a worker ends) and prints every 5 s how many lines each label's files
+## hold out of totals[label].
+func _pool(tasks: Array, jobs: int, totals: Dictionary, t0: int, dir: String) -> void:
+	var queue := tasks.duplicate()
 	var exe := OS.get_executable_path()
 	var proj := ProjectSettings.globalize_path("res://")
-	var running: Array = []                   # [pid, file, task]
-	var files: Array = []                     # [file, profile]
+	var running: Array = []                   # pids
 	var next_print := 0
 	var n := 0
 	while not queue.is_empty() or not running.is_empty():
 		while running.size() < jobs and not queue.is_empty():
 			var task: Array = queue.pop_front()
 			n += 1
-			var file := dir.path_join("w%04d.jsonl" % n)
-			var cargs := ["--headless", "--quiet", "--log-file", dir.path_join("w%04d.log" % n), "--path", proj,
-				"--script", "res://tests/sim_play.gd", "--", "--child=" + file, "--bot=" + str(task[0]),
-				"--seed=%d" % task[1], "--runs=%d" % task[2]] + pass_on
+			var cargs: Array = ["--headless", "--quiet", "--log-file", dir.path_join("w%04d.log" % n), "--path", proj,
+				"--script", "res://tests/sim_play.gd", "--", "--child=" + str(task[1])] + task[2]
 			var pid := OS.create_process(exe, PackedStringArray(cargs))
 			if pid <= 0:
 				push_error("could not start a worker")
 				continue
-			running.append([pid, file, task])
-			files.append([file, task[0]])
+			running.append(pid)
 		OS.delay_msec(200)
-		for i in range(running.size() - 1, -1, -1):
-			if not OS.is_process_running(running[i][0]):
-				running.remove_at(i)
+		running = running.filter(func(pid): return OS.is_process_running(pid))
 		var now := Time.get_ticks_msec()
 		if now >= next_print:
 			next_print = now + 5000
 			var done := {}
-			for f in files:
-				done[f[1]] = int(done.get(f[1], 0)) + _count_lines(f[0])
+			for task in tasks:
+				done[task[0]] = int(done.get(task[0], 0)) + _count_lines(task[1])
 			var parts: Array = []
-			for prof in profiles:
-				parts.append("%s %d/%d" % [prof, int(done.get(prof, 0)), runs])
+			for label in totals:
+				parts.append("%s %d/%d" % [label, int(done.get(label, 0)), int(totals[label])])
 			print(_t("prog") % [" · ".join(parts), (now - t0) / 1000])
-	var out := {}
-	for f in files:
-		var fa := FileAccess.open(f[0], FileAccess.READ)
-		if fa == null:
-			continue
-		while not fa.eof_reached():
-			var line := fa.get_line()
-			if line.strip_edges() == "":
-				continue
-			var r: Variant = JSON.parse_string(line)
-			if r is Dictionary:
-				if not out.has(f[1]):
-					out[f[1]] = []
-				out[f[1]].append(r)
-		fa.close()
-	for name in DirAccess.get_files_at(dir):
-		DirAccess.remove_absolute(dir.path_join(name))
-	DirAccess.remove_absolute(dir)
-	return out
 
 static func _count_lines(path: String) -> int:
 	if not FileAccess.file_exists(path):
@@ -270,11 +340,12 @@ static func _count_lines(path: String) -> int:
 
 # ---------------- one run ----------------
 
-func _play(seed_: int, partner: int, max_t: float, perks: Dictionary) -> Dictionary:
+## One run until it faints (or max_t). opts: Sim.start_run options (perks, ban).
+func _play(seed_: int, partner: int, max_t: float, opts: Dictionary) -> Dictionary:
 	seed(seed_)
 	var sim := Sim.new()
 	sim.render = false
-	sim.start_run(partner, seed_, {"perks": perks} if not perks.is_empty() else {})
+	sim.start_run(partner, seed_, opts)
 	var boss1 := float(sim.defs.bosses[0]["at"]) if not sim.defs.bosses.is_empty() else 180.0
 	var dt := 1.0 / 60.0
 	var lv := {}
@@ -372,6 +443,194 @@ func _trace_line(sim: Sim) -> void:
 	print("  t %6.1f  hp %3d/%-3d  lv %2d  kills %4d  alive %2d  <100 %2d  <200 %2d  closest %5.0f  move %-14s dir (%5.2f,%5.2f)  gems %d" % [
 		sim.time, int(pl.hp), int(pl.max_hp), pl.level, pl.kills, sim.enemies.count(), n100, n200, close,
 		str(am.get("id", "-")), sim.input_axis.x, sim.input_axis.y, sim.pickups.count()])
+
+# ---------------- campaign: accounts that grow run after run ----------------
+
+## The saved account at `path` (same profile and partner) or a new one: 500 coins, no upgrades.
+static func _load_account(path: String, profile: String, partner: int, seed_: int) -> Dictionary:
+	if FileAccess.file_exists(path):
+		var a: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+		if a is Dictionary and a.get("profile") == profile and int(a.get("partner", 0)) == partner:
+			return a
+	return {"profile": profile, "partner": partner, "coins": Save.START_COINS, "levels": {}, "runs": 0,
+		"play_s": 0.0, "spent": 0, "next_seed": seed_, "hist": []}
+
+static func _save_account(path: String, acc: Dictionary) -> void:
+	var f := FileAccess.open(path + ".tmp", FileAccess.WRITE)
+	f.store_string(JSON.stringify(acc))
+	f.close()
+	DirAccess.rename_absolute(path + ".tmp", path)
+
+## Worker: one account plays --campaign runs; after each one it banks the coins, shops, saves.
+func _campaign_child(args: Dictionary, partner: int, max_t: float) -> void:
+	var path := str(args["account"])
+	var acc := _load_account(path, Bot.profile, partner, int(args.get("seed", "1")))
+	var out := FileAccess.open(str(args["child"]), FileAccess.WRITE)
+	var bans := Bot.bans_for(Data.dex_by[partner])
+	for i in int(args["campaign"]):
+		var lv: Dictionary = acc["levels"]
+		var r := _play(int(acc["next_seed"]), partner, max_t, {"perks": Upgrades.perks(lv), "ban": bans})
+		acc["next_seed"] = int(acc["next_seed"]) + 1
+		acc["runs"] = int(acc["runs"]) + 1
+		acc["play_s"] = float(acc["play_s"]) + float(r["time"])
+		var wallet := int(acc["coins"]) + int(r["coins"])
+		var sh := Bot.shop(lv, wallet, bans.size())
+		acc["spent"] = int(acc["spent"]) + wallet - int(sh["coins"])
+		acc["coins"] = int(sh["coins"])
+		var h := {"run": acc["runs"], "t": r["time"], "kills": r["kills"], "coins": r["coins"], "level": r["level"],
+			"bosses": r["bosses"], "saw_boss": r["saw_boss"], "play_s": acc["play_s"], "spent": acc["spent"],
+			"bought": sh["bought"], "last_hit": r["last_hit"]}
+		(acc["hist"] as Array).append(h)
+		out.store_line(JSON.stringify(h))
+		out.flush()
+		_save_account(path, acc)
+	out.close()
+
+## Parent: one worker per account (all profiles), then the progression report per profile.
+func _campaign(args: Dictionary, profiles: Array, partner: int, seed0: int, jobs: int) -> void:
+	var t0 := Time.get_ticks_msec()
+	var n := maxi(0, int(args.get("campaign", "100")))
+	var accounts := maxi(1, int(args.get("accounts", "4")))
+	var keep := str(args.get("save-dir", ""))
+	var tmp := _tmp_dir()
+	var dir := ProjectSettings.globalize_path(keep) if keep != "" else tmp
+	DirAccess.make_dir_recursive_absolute(dir)
+	jobs = maxi(1, mini(jobs, accounts * profiles.size()))
+	if n == 0:
+		print(_t("c_only") % dir)
+	else:
+		print(_t("c_head") % [Data.dex_by[partner]["name"], partner, accounts, n, jobs, (_t("c_keep") % dir) if keep != "" else ""])
+	if not Bot.overrides.is_empty():
+		print("play: profile overrides " + str(Bot.overrides))
+	var tasks: Array = []
+	var totals := {}
+	for prof in profiles:
+		totals[prof] = n * accounts
+		var old := 0
+		var had := 0
+		for k in accounts:
+			var path := dir.path_join("%s_%d.json" % [prof, k + 1])
+			var a := _load_account(path, prof, partner, 0)
+			if int(a["runs"]) > 0:
+				had += 1
+				old += int(a["runs"])
+			# every profile's account k plays the same worlds (seed0 + k * 100003 + run)
+			tasks.append([prof, tmp.path_join("c_%s_%d.jsonl" % [prof, k + 1]),
+				["--bot=" + str(prof), "--campaign=%d" % n, "--account=" + path, "--seed=%d" % (seed0 + k * 100003)] + _pass_on(args)])
+		if had > 0 and n > 0:
+			print(_t("c_resume") % [prof, had, old])
+	if n > 0:
+		_pool(tasks, jobs, totals, t0, tmp)
+	for prof in profiles:
+		var accs: Array = []
+		for k in accounts:
+			var path := dir.path_join("%s_%d.json" % [prof, k + 1])
+			if FileAccess.file_exists(path):
+				accs.append(JSON.parse_string(FileAccess.get_file_as_string(path)))
+		if not accs.is_empty():
+			_campaign_report(prof, accs)
+	_rm_dir(tmp)
+	print(_t("done") % ((Time.get_ticks_msec() - t0) / 1000.0))
+
+func _campaign_report(prof: String, accs: Array) -> void:
+	var total := _upgrades_left({})
+	var K := accs.size()
+	var runs := 0
+	for a in accs:
+		runs = maxi(runs, (a["hist"] as Array).size())
+	print("")
+	print(_t("c_title") % [prof, K, runs])
+	var hdr: Array = _t_arr("c_cols_h")
+	print(_t("c_cols") % hdr)
+	var rows_at: Array = CHECKPOINTS.filter(func(c): return c < runs)
+	rows_at.append(runs)
+	for c: int in rows_at:
+		# the runs that end at c, averaged over the last 20% (at least 1)
+		var w := maxi(1, int(c * 0.2))
+		var ts: Array[float] = []
+		var coins := 0.0
+		var saw := 0
+		var hours := 0.0
+		var spent := 0.0
+		var best := 0.0
+		var na := 0
+		for a in accs:
+			var h: Array = a["hist"]
+			if h.size() < c:
+				continue
+			na += 1
+			hours += float(h[c - 1]["play_s"]) / 3600.0
+			spent += float(h[c - 1]["spent"])
+			for j in range(c - w, c):
+				ts.append(float(h[j]["t"]))
+				coins += float(h[j]["coins"])
+				saw += int(h[j]["saw_boss"])
+				best = maxf(best, float(h[j]["t"]))
+		if ts.is_empty():
+			continue
+		var mean := 0.0
+		for t in ts:
+			mean += t
+		mean /= ts.size()
+		print(_t("c_row") % [str(c), hours / na, int(100.0 * spent / na / total), _mmss(mean), _mmss(best),
+			coins / ts.size(), int(100.0 * saw / ts.size())])
+	for m in MILESTONES:
+		var at: Array = []
+		var hrs: Array = []
+		for a in accs:
+			for h in a["hist"]:
+				if float(h["t"]) >= m:
+					at.append(int(h["run"]))
+					hrs.append(float(h["play_s"]) / 3600.0)
+					break
+		if at.is_empty():
+			print(_t("c_ms_no") % [_mmss(m), K])
+		else:
+			print(_t("c_ms") % [_mmss(m), _num(_median(at)), _t("c_hours") % _median(hrs), at.size(), K])
+	var at_max: Array = []
+	var hrs_max: Array = []
+	var pct: Array = []
+	var wallet: Array = []
+	for a in accs:
+		pct.append(100.0 * float(a["spent"]) / total)
+		wallet.append(float(a["coins"]))
+		for h in a["hist"]:
+			if float(h["spent"]) >= total:
+				at_max.append(int(h["run"]))
+				hrs_max.append(float(h["play_s"]) / 3600.0)
+				break
+	if at_max.is_empty():
+		print(_t("c_max_no") % K)
+	else:
+		print(_t("c_max") % [_num(_median(at_max)), _t("c_hours") % _median(hrs_max), at_max.size(), K])
+	print(_t("c_left") % [runs, int(_median(pct)), int(_median(wallet))])
+	var first: Array = []
+	for h in accs[0]["hist"]:
+		for id in h["bought"]:
+			if first.size() < 14:
+				first.append("%s(%d)" % [_upg_name(id), int(h["run"])])
+	print(_t("c_buy") + (", ".join(first) if not first.is_empty() else _t("c_none")))
+
+func _t_arr(key: String) -> Array:
+	return TXT[_lang][key]
+
+## 12 or 12.5 (a median of run numbers).
+static func _num(v: float) -> String:
+	return str(int(v)) if v == floorf(v) else "%.1f" % v
+
+static func _median(a: Array) -> float:
+	if a.is_empty():
+		return 0.0
+	var b := a.duplicate()
+	b.sort()
+	return float(b[b.size() / 2]) if b.size() % 2 == 1 else (float(b[b.size() / 2 - 1]) + float(b[b.size() / 2])) / 2.0
+
+## Upgrade name for the report (the game's Spanish name, with the Chinese one in --lang=zh).
+func _upg_name(id: String) -> String:
+	if _lang == "zh":
+		return {"hp": "生命", "atk": "力量", "spd": "移速", "cd": "冷却", "def": "防御", "regen": "回血", "magnet": "吸取",
+			"xp": "经验", "coins": "幸运", "moves": "开局2技能", "crit": "暴击", "reroll": "换卡", "ban": "禁用"}.get(id, id)
+	return id
 
 # ---------------- report ----------------
 

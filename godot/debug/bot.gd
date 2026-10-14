@@ -40,22 +40,37 @@ extends RefCounted
 ##   cards      novice · casual · expert card taste (see _card_score)
 ##   buffs      stacks buff moves while it is calm
 ##   reroll     rerolls a bad hand of cards
+##   shop       how it spends coins on permanent upgrades between runs (tests/sim_play.gd --campaign):
+##              cheapest = always the cheapest one; casual / expert = best SHOP_W value per coin
 const PROFILES := {
 	"novice": {"react": 0.40, "think": 0.16, "dirs": 8, "lapse": 0.25, "noise": 0.25, "attention": 10,
 		"see": 300.0, "margin": 18.0, "horizon": 0.5, "crowd": 0.5, "tangent": 0.0, "greed": 1.0,
-		"seek": 350.0, "chest": [2, 4], "aim": 0.0, "switch": "stay", "cards": "novice", "buffs": false, "reroll": false},
+		"seek": 350.0, "chest": [2, 4], "aim": 0.0, "switch": "stay", "cards": "novice", "buffs": false, "reroll": false,
+		"shop": "cheapest"},
 	"casual": {"react": 0.27, "think": 0.10, "dirs": 8, "lapse": 0.10, "noise": 0.12, "attention": 20,
 		"see": 380.0, "margin": 28.0, "horizon": 0.8, "crowd": 1.0, "tangent": 0.35, "greed": 1.1,
-		"seek": 900.0, "chest": [3, 6], "aim": 0.6, "switch": "best", "cards": "casual", "buffs": false, "reroll": true},
+		"seek": 900.0, "chest": [3, 6], "aim": 0.6, "switch": "best", "cards": "casual", "buffs": false, "reroll": true,
+		"shop": "casual"},
 	"expert": {"react": 0.18, "think": 0.05, "dirs": 16, "lapse": 0.02, "noise": 0.04, "attention": 40,
 		"see": 460.0, "margin": 30.0, "horizon": 1.0, "crowd": 1.2, "tangent": 0.6, "greed": 1.3,
-		"seek": 1200.0, "chest": [5, 8], "aim": 1.0, "switch": "smart", "cards": "expert", "buffs": true, "reroll": true},
+		"seek": 1200.0, "chest": [5, 8], "aim": 1.0, "switch": "smart", "cards": "expert", "buffs": true, "reroll": true,
+		"shop": "expert"},
 }
 
 ## Area moves (good in a crowd) and single-target ones (good on a boss), for "smart" switching.
 const AOE := {"nova": true, "orbit": true, "aura": true, "melee": true, "cone": true, "meteor": true,
 	"mine": true, "trail": true, "chain": true}
 const SINGLE := {"projectile": true, "beam": true, "boomerang": true, "dash": true, "chain": true}
+
+## What a level of each permanent upgrade is worth to a player (Bot.shop picks the best value per coin
+## it can afford). "moves" (start with 2 moves) is one 1500-coin level; "ban" only matters while
+## there are buff moves left to ban.
+const SHOP_W := {
+	"casual": {"hp": 1.0, "atk": 1.0, "spd": 0.5, "cd": 0.8, "def": 0.8, "regen": 0.6, "magnet": 0.4, "xp": 0.5,
+		"coins": 0.4, "moves": 8.0, "crit": 0.7, "reroll": 0.4, "ban": 0.5},
+	"expert": {"hp": 0.9, "atk": 1.3, "spd": 0.6, "cd": 1.2, "def": 0.9, "regen": 0.7, "magnet": 0.5, "xp": 0.8,
+		"coins": 0.7, "moves": 14.0, "crit": 1.0, "reroll": 0.6, "ban": 1.0},
+}
 
 ## legacy | novice | casual | expert
 static var profile := "legacy"
@@ -688,6 +703,42 @@ static func _human_goal(sim: Sim, near_n: int, hurt_k: float) -> Array:
 			bd = d / w
 			best = [at, w]
 	return best
+
+# ---------------- between runs: the upgrade shop ----------------
+
+## Spends `coins` on permanent upgrades the way this profile's player would (Upgrades.cost, max
+## levels); `levels` is updated in place. bans_left = buff moves that a Veto level could still
+## block. Returns {coins: left, bought: [ids in order]}.
+static func shop(levels: Dictionary, coins: int, bans_left: int) -> Dictionary:
+	var P: Dictionary = (PROFILES.get(profile, PROFILES["casual"]) as Dictionary).duplicate()
+	P.merge(overrides, true)
+	var style: String = P.get("shop", "casual")
+	var bought: Array = []
+	while true:
+		var best := ""
+		var best_v := -INF
+		for u in Upgrades.list():
+			var id: String = u["id"]
+			var lvl := int(levels.get(id, 0))
+			if lvl >= int(u["max"]) or (id == "ban" and lvl >= bans_left):
+				continue
+			var cost := Upgrades.cost(id, lvl)
+			if cost > coins:
+				continue
+			var v: float = -float(cost) if style == "cheapest" else float(SHOP_W[style].get(id, 0.5)) / cost
+			if v > best_v:
+				best_v = v
+				best = id
+		if best == "":
+			break
+		coins -= Upgrades.cost(best, int(levels.get(best, 0)))
+		levels[best] = int(levels.get(best, 0)) + 1
+		bought.append(best)
+	return {"coins": coins, "bought": bought}
+
+## The moves a player blocks with Veto: the buff moves of the partner's pool (they deal no damage).
+static func bans_for(mon: Dictionary) -> Array:
+	return Moves.pool_for(mon).filter(func(id): return Moves.def(id).get("kind", "") == "buff")
 
 # ---------------- moves ----------------
 

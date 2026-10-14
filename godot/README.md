@@ -1,5 +1,7 @@
 # PokéSurvivor — Godot 4.7 port
 
+[中文说明](README.zh-CN.md) (quick start, controls, tests and the playtest simulator in Chinese)
+
 Native port of the browser game (vanilla JS + Canvas 2D, `../js`) to **Godot 4.7.1 / GDScript**.
 The porting spec is [`docs/PORTING.md`](docs/PORTING.md); the JS code is the source of truth.
 Feature parity with the web game, item by item: [`docs/PARITY.md`](docs/PARITY.md).
@@ -82,6 +84,7 @@ and bot runs don't advance missions or achievements.
 godot --headless --path godot --script res://tests/run_tests.gd        # unit tests, exit code 0 = pass
 godot --headless --path godot --script res://tests/sim_smoke.gd -- --seconds=120 --seed=7 [--god]
 godot --headless --path godot --script res://tests/sim_play.gd -- --bot=novice,casual,expert --runs=100 --lang=zh   # playtest batch
+godot --headless --path godot --script res://tests/sim_play.gd -- --campaign=100 --accounts=4 --save-dir=user://accounts --lang=zh   # accounts that grow
 godot --headless --path godot --script res://tests/meta_ui_smoke.gd     # Phase 4 screens, headless
 godot --headless --path godot --script res://tests/nav_smoke.gd         # Phase 5 keyboard / gamepad / back button
 godot --headless --path godot --script res://tests/run_i18n_tests.gd    # Phase 5 i18n checks only
@@ -156,6 +159,20 @@ went** and **what landed the last hit** (`Player.dmg_log` / `last_hit`, filled b
 seconds; use with one profile and `--runs=1`), `--prof` (bot vs `Sim.update` time per frame). To watch
 one play, run after run, fast-forwarded and with each result printed:
 `godot --path godot -- --autoplay --bot=expert --speed=4` (`--speed=<n>`: n simulation steps per frame).
+
+**Campaign** (`--campaign=<n>`): instead of every run starting from zero, each of `--accounts`
+accounts per profile (default 4, one worker each) starts like a new account (500 coins, no
+upgrades) and plays n runs in a row; after every run its coins buy the partner's permanent upgrades
+the way that player would (`Bot.shop`: the novice always buys the cheapest, casual / expert the best
+`Bot.SHOP_W` value per coin; Veto blocks the buff moves) and the next run starts with them.
+`--save-dir=<dir>` keeps each account in `<dir>/<profile>_<k>.json` (coins, levels, runs, play time,
+next seed, every run's summary); running `--campaign` again with the same dir continues them. The
+report is the progression curve per profile (at run 1, 5, 10, 20, 30, 50, 75, 100, ...: hours
+played, share of the 40,000 upgrade coins spent, survival mean and longest, coins per run, first
+boss reached), when the accounts first last 3 / 5 / 10 min and buy every upgrade (median run and
+hours) and the first purchases. Gacha (other partners), missions and achievements are not simulated.
+`--campaign=0` with the same `--save-dir` only prints that report (accounts are saved after every run,
+so this works while a campaign is still playing them).
 
 Phase 2 checks (`tests/phase2_tests.gd`, 96 checks) against `data/test_vectors_p2.json` (written by
 `exportPhase2()` in `tools/export_godot.js`, which runs the unchanged `enemy.js`, `combat.js`,
