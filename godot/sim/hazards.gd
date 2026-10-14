@@ -21,6 +21,7 @@ class Hazard:
 	var t := 0.0
 	var hit := false
 	var end := 0.3
+	var src := ""                # who cast it: "boss" or the enemy behavior (Player.dmg_log)
 
 var list: Array[Hazard] = []
 
@@ -31,8 +32,9 @@ func count() -> int:
 	return list.size()
 
 ## Circle zone centred on (x, y).
-func zone(x: float, y: float, r: float, delay: float, dmg: float, type: String, color: Color) -> Hazard:
+func zone(x: float, y: float, r: float, delay: float, dmg: float, type: String, color: Color, src := "") -> Hazard:
 	var h := Hazard.new()
+	h.src = src
 	h.kind = "zone"
 	h.x = x
 	h.y = y
@@ -45,8 +47,9 @@ func zone(x: float, y: float, r: float, delay: float, dmg: float, type: String, 
 	return h
 
 ## Strip from (x, y) along `angle`, `len` long and `w` wide.
-func beam(x: float, y: float, angle: float, len: float, w: float, delay: float, dmg: float, type: String, color: Color) -> Hazard:
+func beam(x: float, y: float, angle: float, len: float, w: float, delay: float, dmg: float, type: String, color: Color, src := "") -> Hazard:
 	var h := Hazard.new()
+	h.src = src
 	h.kind = "beam"
 	h.x = x
 	h.y = y
@@ -83,7 +86,7 @@ func update(dt: float, pl: Player) -> void:
 			_detonate(h)
 			if pl != null and not pl.dead and inside(h, pl.x, pl.y, pl.r):
 				pl.invuln = 0.0
-				pl.hurt(h.dmg, h.type)
+				pl.hurt(h.dmg, h.type, "hazard:" + (h.src if h.src != "" else h.kind))
 		if h.hit and h.t >= h.delay + h.end:
 			list.remove_at(i)
 

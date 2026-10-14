@@ -68,6 +68,10 @@ var sash_t := -999999            # last time (ms, wall clock like JS) the Focus 
 var last_patch: WeakRef = null  # last trail patch (Combat.Field; weak: the field refers back to us)
 var bell_heal := 0.0
 var stats_taken: Dictionary = {}
+## HP lost this run by source (`src` of hurt(): "touch:<behavior>", "boss", "shot", "hazard:<who>",
+## "trap", "lava", "weather") and the source of the last hit. Bookkeeping only (tests/sim_play.gd).
+var dmg_log: Dictionary = {}
+var last_hit := ""
 var target: Body = null
 var svx := 0.0
 var svy := 0.0
@@ -320,8 +324,8 @@ func cast(m: Dictionary) -> void:
 
 # ---------------- damage and healing ----------------
 
-## type = attack type (type chart); "" = untyped damage.
-func hurt(amount: float, type := "") -> void:
+## type = attack type (type chart); "" = untyped damage. src: where it came from (dmg_log only).
+func hurt(amount: float, type := "", src := "other") -> void:
 	if invuln > 0.0 or dead or god:
 		return
 	var before := hp
@@ -337,6 +341,8 @@ func hurt(amount: float, type := "") -> void:
 			close = 0.75
 	var d := maxf(1.0, amount * (1.0 - reduction()) * close)
 	hp -= d
+	dmg_log[src] = float(dmg_log.get(src, 0.0)) + minf(d, before)
+	last_hit = src
 	invuln = 0.45
 	flash = 0.14
 	Sfx.play("hurt")
@@ -465,7 +471,7 @@ func update(dt: float) -> void:
 			if lava_tick <= 0.0:
 				lava_tick = le["every"]
 				invuln = 0.0
-				hurt(maxf(le["flat"], max_hp * le["dmg"] * 0.5))
+				hurt(maxf(le["flat"], max_hp * le["dmg"] * 0.5), "", "lava")
 				S.fx.burst(x, y - 4.0, Color.html(le["color"]), 5, 70.0)
 		elif walking and randf() < dt * 8.0:
 			S.fx.burst(x, y, Color.WHITE if le.get("slide", false) else Color.html("#b3defa"), 2, 40.0)

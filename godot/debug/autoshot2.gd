@@ -7,6 +7,7 @@ extends RefCounted
 ##     --boss-gap=<s>     time between bosses (90)        --force-shiny=<n> next n spawns shiny
 ##     --item=<id>        start with a held item          --cycle         bot rotates move slots
 ##     --start-t=<s>      start the run clock at s (perf at the enemy cap)
+##     --bot=<profile>    legacy (default) | novice | casual | expert, --bot-set=k=v,... (debug/bot.gd)
 ##   tick(game)  visual check with `--autoshot=<dir> --p2`: plays a run with the bot (god mode
 ##   with --god) and saves event screenshots (boss, boss cast, telegraph, enemy shots, shiny
 ##   on screen / off-screen arrow, item choice) plus one every 5 s; quits at --p2-end (75 s).
@@ -30,6 +31,10 @@ static func debug_from_args(args: Dictionary) -> Dictionary:
 	if args.has("start-t"):
 		d["start_t"] = float(args["start-t"])
 	Bot.cycle_slots = args.has("cycle")
+	# --bot=legacy|novice|casual|expert (debug/bot.gd): who plays the bot runs
+	Bot.profile = str(args.get("bot", "legacy")) if Bot.PROFILES.has(str(args.get("bot", ""))) else "legacy"
+	if args.has("bot-set"):
+		Bot.set_overrides(str(args["bot-set"]))
 	# Phase 3b: --event=horde,gold,lost,thief (from --event-at=s, default 5, one after another),
 	# --rift-at=s (open a rift then), --rift-type=<type> (its arena), --bonds=n, --seek (bot goals)
 	if args.has("event"):

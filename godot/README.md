@@ -37,7 +37,8 @@ size from *Ajustes › Controles*), tap a move slot to switch, pause button top-
 
 Debug flags (after `--`): `--partner=<dex>` (default 4 Charmander), `--seed=<n>`, `--touch`
 (force the touch UI), `--fps`, `--autoshot=<dir>` (visual check: title → run driven by the
-bot → screenshots `title/t03/levelup/t20/pause/t45/over.png` → quit). Phone-like aspect:
+bot → screenshots `title/t03/levelup/t20/pause/t45/over.png` → quit), `--bot=novice|casual|expert`
+(who plays `--autoplay` / `--autoshot` runs; default the legacy test bot, see "Playtest bots"). Phone-like aspect:
 `godot --path godot --resolution 1320x608 -- --autoshot=/tmp/shots --touch --ui-scale=1.5`.
 Phase 5: `--lang=es|en|zh` (language for this run, not saved), `--ui-scale=<physical px per canvas
 px>` (phone UI scale; 1.5 in a 1320×608 window = the 2640×1216 target phone at half size, i.e. its
@@ -80,6 +81,7 @@ and bot runs don't advance missions or achievements.
 ```sh
 godot --headless --path godot --script res://tests/run_tests.gd        # unit tests, exit code 0 = pass
 godot --headless --path godot --script res://tests/sim_smoke.gd -- --seconds=120 --seed=7 [--god]
+godot --headless --path godot --script res://tests/sim_play.gd -- --bot=novice,casual,expert --runs=100 --lang=zh   # playtest batch
 godot --headless --path godot --script res://tests/meta_ui_smoke.gd     # Phase 4 screens, headless
 godot --headless --path godot --script res://tests/nav_smoke.gd         # Phase 5 keyboard / gamepad / back button
 godot --headless --path godot --script res://tests/run_i18n_tests.gd    # Phase 5 i18n checks only
@@ -120,6 +122,40 @@ level-up offers (distinct cards, caps, forced gold evolution card) and a 60 s he
 kinds cast, behaviors / bosses / shinies / items seen and the `Sim.update` time (avg / max, and at
 the 64-enemy cap). It takes the Phase 2 debug flags above, e.g.
 `-- --seconds=600 --god --learn=rock-slide,discharge,quick-attack,flame-wheel --move-lvl=5 --boss-at=45 --cycle`.
+
+### Playtest bots (`tests/sim_play.gd`)
+
+`debug/bot.gd` has, next to the `legacy` test bot (the default everywhere: tests, benchmark,
+screenshots), three **human-like** profiles picked with `--bot=novice|casual|expert` (sim_play,
+sim_smoke, `--autoplay`, `--autoshot`). They notice a new telegraph / enemy shot / charger wind-up only
+after a reaction time (0.40 / 0.27 / 0.18 s) and sometimes overlook one; re-plan a few times per
+second by scoring 8 key directions (16 for the expert's stick) over the next 0.5–1 s against
+predicted enemy positions (runners lead you like the game does), telegraphs, shot paths, walls /
+lava / traps, crowding and corners; kite sideways around the crowd; keep the active move's range and
+a clear line of fire (rocks, trees and walls stop shots); collect the best gem that no enemy stands
+on; head for the rift, altars, springs when hurt and locked chests, and wait by a chest until it
+opens (unless it gets crowded); pick cards, reroll and switch moves like a player of that level.
+Their noise has its own RNG seeded from the world seed: a seed + profile replays exactly.
+All the numbers are in `Bot.PROFILES`; `--bot-set=margin=20,chest=3/6` overrides them for one batch.
+
+`sim_play.gd` plays `--runs` runs per profile (default 20, same seeds for every profile), each one
+**until the Pokémon faints** (`--max=<s>` to cap them; a 4 h safety stop otherwise), on `--jobs`
+headless Godot workers in parallel (default CPU threads − 2, max 12: about 7× faster than one
+process; a worker that finishes takes the next block of seeds, and the results are identical to a
+`--jobs=1` run). It prints the progress every 5 s, then per profile (`--lang=zh` for Chinese):
+survival time (median / mean / shortest / longest and a histogram), the best run (seed, time,
+level, kills, coins), kills and coins (mean / most / all runs), how many runs like these all of the
+partner's remaining upgrades would take (and hours of play), level, how many reach and beat the
+first boss, level at 1 / 3 / 5 / 10 min, movement (direction changes per second, time standing still,
+distance kept from enemies), map use (locked chests opened, altars, spring healing, traps, rifts
+opened / entered / won), shots (how often the line of fire to the target is blocked), **where the HP
+went** and **what landed the last hit** (`Player.dmg_log` / `last_hit`, filled by `hurt(.., src)`:
+`touch:<behavior>`, `boss`, `shot`, `hazard:<who>`, `trap`, `lava`, `weather`). Options:
+`--upg=<0..1>` (permanent upgrades bought, fraction of each max), `--partner=<dex>`, `--max=<s>`,
+`--csv=<file>` (one row per run), `--verbose` (one line per run), `--trace=<s>` (a state line every s
+seconds; use with one profile and `--runs=1`), `--prof` (bot vs `Sim.update` time per frame). To watch
+one play, run after run, fast-forwarded and with each result printed:
+`godot --path godot -- --autoplay --bot=expert --speed=4` (`--speed=<n>`: n simulation steps per frame).
 
 Phase 2 checks (`tests/phase2_tests.gd`, 96 checks) against `data/test_vectors_p2.json` (written by
 `exportPhase2()` in `tools/export_godot.js`, which runs the unchanged `enemy.js`, `combat.js`,

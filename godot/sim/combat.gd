@@ -31,6 +31,10 @@ class Field:
 
 var fields: Array[Field] = []
 
+## Player shots this run: fired, stopped by a wall / indestructible prop, spent on a rock or
+## chest (tests/sim_play.gd). Bookkeeping only.
+var shot_stats := {"fired": 0, "wall": 0, "prop": 0}
+
 func clear_fields(owner: Player = null) -> void:
 	if owner == null:
 		fields.clear()
@@ -123,6 +127,7 @@ static func _f(m: Dictionary, k: String, def := 0.0) -> float:
 
 ## Player shot record (fireProjectiles / nova / cone / boomerang / turret payload).
 func _shot(pl: Player, m: Dictionary, x: float, y: float, a: float, speed: float, life: float, dmg: float) -> Projectiles.Proj:
+	shot_stats["fired"] += 1
 	var p := Projectiles.Proj.new()
 	p.x = x
 	p.y = y
@@ -615,7 +620,7 @@ func resolve(_dt: float, pl: Player, now: float) -> void:
 				list.erase(p)
 				continue
 			if U.dist2(p.x, p.y, pl.x, pl.y) < (p.r + pl.r) * (p.r + pl.r):
-				pl.hurt(p.dmg, p.mtype)
+				pl.hurt(p.dmg, p.mtype, "shot")
 				S.fx.burst(p.x, p.y - U.LIFT, p.color, 7, 110.0)
 				list.erase(p)
 			continue
@@ -623,6 +628,7 @@ func resolve(_dt: float, pl: Player, now: float) -> void:
 		if not p.orb:
 			var block: Variant = S.world.projectile_block_any(p.x, p.y, p.r)
 			if block is String or (block != null and not (block as WorldProp).destructible):
+				shot_stats["wall"] += 1
 				S.fx.burst(p.x, p.y - U.LIFT, p.color, 5, 80.0)
 				list.erase(p)
 				continue
@@ -648,6 +654,7 @@ func resolve(_dt: float, pl: Player, now: float) -> void:
 					consumed = true
 					break
 		if consumed:
+			shot_stats["prop"] += 1
 			S.fx.burst(p.x, p.y - U.LIFT, p.color, 5, 80.0)
 			list.erase(p)
 			continue
@@ -708,7 +715,7 @@ func resolve(_dt: float, pl: Player, now: float) -> void:
 			continue
 		e.touch_cd = 0.55
 		e.strike(pl)
-		pl.hurt(e.dmg, e.atk_type)
+		pl.hurt(e.dmg, e.atk_type, "boss" if e.boss else "touch:" + e.behavior)
 		if pl.has_item("rockyhelmet"):
 			e.hurt(15.0 + pl.level * 4.0, Color.html("#9aa6b5"), e.x - pl.x, e.y - pl.y, 80.0)
 		var n := U.norm(e.x - pl.x, e.y - pl.y)

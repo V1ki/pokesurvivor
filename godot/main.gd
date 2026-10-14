@@ -10,6 +10,10 @@ extends Node
 ##   --fps              show the FPS counter
 ##   --autoplay         the bot plays forever (restarts after each run): device benchmark
 ##   --god              with --autoplay: the player takes no damage (full 64-enemy load)
+##   --bot=<profile>    who plays bot runs: legacy (default) | novice | casual | expert (debug/bot.gd);
+##                      --bot-set=k=v,... overrides that profile's numbers
+##   --speed=<n>        with --autoplay: fast-forward, n simulation steps per frame (same dt, so the
+##                      game plays the same, only n times faster); each run's result is printed
 ##   --p2               with --autoshot: Phase 2 visual check (debug/autoshot2.gd)
 ##   --metashot=<dir>   Phase 4 visual check of the meta screens (debug/meta_shots.gd), then quit
 ##   --import=<file>    import a web-game save JSON through the real import path at start
@@ -68,6 +72,10 @@ var _real_t := 0.0
 # autoplay + perf log state (debug only)
 var _autoplay := false
 var _auto_wait := 0.0
+var _speed := 1                  # --speed: sim steps per frame in --autoplay
+var _auto_runs := 0              # --autoplay: runs played, best one, result already printed
+var _auto_best: Dictionary = {}
+var _auto_logged := false
 var _perf := {"t": 0.0, "frames": 0, "max": 0.0, "sim_us": 0, "sim_max_us": 0}
 var _bench: BenchDraw = null       # --bench=<frames>: windowed frame benchmark (debug/bench_draw.gd)
 
@@ -219,6 +227,7 @@ func _parse_args() -> void:
 	if args.has("seed"):
 		seed_arg = int(args["seed"])
 	_autoplay = args.has("autoplay") and _shot_dir == ""
+	_speed = clampi(int(args.get("speed", "1")), 1, 64) if _autoplay else 1
 
 func _on_resize() -> void:
 	var vs := get_viewport().get_visible_rect().size
@@ -398,6 +407,12 @@ func _process(delta: float) -> void:
 	var t0 := Time.get_ticks_usec()
 	if sim.state == "playing":
 		sim.update(dt)
+		# --autoplay --speed=n: n-1 more steps of the same dt this frame (fast-forward)
+		for i in _speed - 1:
+			if sim.state != "playing":
+				break
+			sim.input_axis = Bot.axis(sim)
+			sim.update(dt)
 		Meta.bank_tickets(sim.player)     # tickets are saved as soon as they are picked up
 		Settings.sample(delta)
 	else:
@@ -419,11 +434,21 @@ func _process(delta: float) -> void:
 # ---------------- autoplay + perf log (device benchmark, debug only) ----------------
 
 func _autoplay_tick(delta: float) -> void:
-	_auto_wait += delta
+	_auto_wait += delta * _speed
+	if sim.state == "over" and not _auto_logged:
+		_auto_logged = true
+		_auto_runs += 1
+		var r := sim.result
+		if _auto_best.is_empty() or float(r["time"]) > float(_auto_best["time"]):
+			_auto_best = r
+		print("[autoplay] run %d (%s): %d:%02d, level %d, %d kills, %d coins · best %d:%02d" % [_auto_runs, Bot.profile,
+			int(r["time"]) / 60, int(r["time"]) % 60, r["level"], r["kills"], r["coins"],
+			int(_auto_best["time"]) / 60, int(_auto_best["time"]) % 60])
 	match sim.state:
 		"ui", "over":
 			if _auto_wait > 2.0:
 				_auto_wait = 0.0
+				_auto_logged = false
 				start_run()
 		"levelup", "choice":
 			if _auto_wait > 0.3:

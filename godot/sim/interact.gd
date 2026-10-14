@@ -182,9 +182,9 @@ func trap_effect(p: WorldProp) -> void:
 	if pl != null and not pl.dead and U.dist2(x, y, pl.x, pl.y) < pow(TRAP_R * 0.7, 2.0):
 		pl.invuln = 0.0
 		if k == 0:
-			pl.hurt(pl.max_hp * 0.1)
+			pl.hurt(pl.max_hp * 0.1, "", "trap")
 		elif k == 1:
 			pl.slow_t = 3.5
 			S.fx.dmg_text(pl.x, pl.y - pl.body_h - 6.0, "¡Pegajoso!", Color.html("#8bd94a"))
 		else:
-			pl.hurt(pl.max_hp * 0.2)
+			pl.hurt(pl.max_hp * 0.2, "", "trap")

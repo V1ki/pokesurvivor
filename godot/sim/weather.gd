@@ -128,6 +128,8 @@ func update(dt: float, time: float, pl) -> void:
 			var d := maxf(1.0, pl.max_hp * 0.012)
 			if pl.hp > d + 1.0:
 				pl.hp -= d
+				if pl is Player:
+					pl.dmg_log["weather"] = float(pl.dmg_log.get("weather", 0.0)) + d
 				if Sim.cur != null:
 					Sim.cur.fx.dmg_text(pl.x, pl.y - pl.body_h - 4.0, "-%d" % U.jroundi(d), Color.html(def()["color"]))
 		if not cur.is_empty() and def().has("safe") and level() > 0.5:

@@ -572,17 +572,17 @@ func boss_start(cid: String, pl: Body) -> void:
 	match cid:
 		"slam":            # stomp: shockwave around it
 			c["wind"] = 0.85 * f
-			S.hazards.zone(x, y, 96.0 + r, c["wind"], dmg * 1.3, type, col)
+			S.hazards.zone(x, y, 96.0 + r, c["wind"], dmg * 1.3, type, col, "boss")
 			anim.play("Charge", 1.2)
 		"dash":            # straight charge
 			c["wind"] = 0.75 * f
 			c["len"] = 330.0
 			c["dur"] = 0.32
-			S.hazards.beam(x, y, ang, 330.0 + r, r * 2.0 + 16.0, c["wind"] + c["dur"], dmg * 1.2, type, col)
+			S.hazards.beam(x, y, ang, 330.0 + r, r * 2.0 + 16.0, c["wind"] + c["dur"], dmg * 1.2, type, col, "boss")
 			anim.play("Charge", 1.3)
 		"leap":            # jumps and lands on you
 			jump = {"sx": x, "sy": y, "tx": pl.x, "ty": pl.y, "t": -0.5 * f, "dur": 0.65}
-			S.hazards.zone(pl.x, pl.y, 82.0, 0.5 * f + 0.65, dmg * 1.25, type, col)
+			S.hazards.zone(pl.x, pl.y, 82.0, 0.5 * f + 0.65, dmg * 1.25, type, col, "boss")
 			anim.play("Charge", 1.4)
 			ai.cast = {}
 			ai.cd = U.rand(1.4, 2.0) + 0.6
@@ -591,14 +591,14 @@ func boss_start(cid: String, pl: Body) -> void:
 			for i in n:
 				var a := randf() * U.TAU_JS if i > 0 else 0.0
 				var d := U.rand(40.0, 120.0) if i > 0 else 0.0
-				S.hazards.zone(pl.x + cos(a) * d, pl.y + sin(a) * d * 0.8, 50.0, 1.05 + i * 0.12, shot_dmg() * 1.15, type, col)
+				S.hazards.zone(pl.x + cos(a) * d, pl.y + sin(a) * d * 0.8, 50.0, 1.05 + i * 0.12, shot_dmg() * 1.15, type, col, "boss")
 			c["wind"] = 0.5
 			anim.play("Shoot")
 		"beam":            # fan of beams
 			var n := 5 if ai.fury else 3
 			var spr := 0.42 if ai.fury else 0.5
 			for i in n:
-				S.hazards.beam(x, y, ang + (i - (n - 1) / 2.0) * spr, 400.0, 26.0, 1.0, shot_dmg() * 1.2, type, col)
+				S.hazards.beam(x, y, ang + (i - (n - 1) / 2.0) * spr, 400.0, 26.0, 1.0, shot_dmg() * 1.2, type, col, "boss")
 			c["wind"] = 1.0
 			c["after"] = 0.25
 			anim.play("Charge", 1.1)
@@ -678,13 +678,13 @@ func special(pl: Body, dx: float, dy: float) -> void:
 			shoot(dx, dy, 0.6 if n == 3 else 0.9, n, 0.65)
 		"beamer":
 			# telegraphed beam: the strip shows on the ground first
-			S.hazards.beam(x, y, atan2(dy, dx), 360.0, 22.0, 1.0, shot_dmg() * 1.05, atk_type, col)
+			S.hazards.beam(x, y, atan2(dy, dx), 360.0, 22.0, 1.0, shot_dmg() * 1.05, atk_type, col, behavior)
 			anim.play("Charge", 1.2)
 		"zoner":
 			var n := U.rand_int(1, int(def.get("zones", 3)) if def.get("zones", 0) else 3)
 			for i in n:
 				S.hazards.zone(pl.x + (U.rand(-70, 70) if i > 0 else 0.0), pl.y + (U.rand(-55, 55) if i > 0 else 0.0), 44.0,
-					1.2, shot_dmg() * 0.95, atk_type, col)
+					1.2, shot_dmg() * 0.95, atk_type, col, behavior)
 			anim.play("Shoot")
 		"healer":
 			heal_around()
@@ -748,12 +748,12 @@ func summon() -> void:
 func start_fuse() -> void:
 	phase = "fuse"
 	pt = 1.0
-	Sim.cur.hazards.zone(x, y, 62.0, 1.0, dmg * 1.4, atk_type, Color.html("#ff7b3d"))
+	Sim.cur.hazards.zone(x, y, 62.0, 1.0, dmg * 1.4, atk_type, Color.html("#ff7b3d"), "bomber")
 
 func start_jump(pl: Body) -> void:
 	jump = {"sx": x, "sy": y, "tx": pl.x, "ty": pl.y, "t": -0.45, "dur": 0.6}
 	anim.play("Charge", 1.4)
-	Sim.cur.hazards.zone(pl.x, pl.y, 50.0, 1.05, dmg * 1.2, atk_type, _col())
+	Sim.cur.hazards.zone(pl.x, pl.y, 50.0, 1.05, dmg * 1.2, atk_type, _col(), "jumper")
 
 ## Jump: crouches, flies in an arc (over walls) and lands where you were.
 func _update_jump(dt: float) -> void:
