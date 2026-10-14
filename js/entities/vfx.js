@@ -379,7 +379,17 @@ G.VFX = (() => {
     'aerial-ace':    { proj: 'wind' },
     'flame-wheel':   { proj: 'fire', aura: 'fire' },
     'bubble-beam':   { proj: 'bubble' },
-    'hex':           { beam: 'shadow', proj: 'shadow' }
+    'hex':           { beam: 'shadow', proj: 'shadow' },
+    'double-edge':   { proj: 'streak' },
+    'headbutt':      { melee: 'impact' },
+    'astonish':      { proj: 'shadow', trail: 'wisp' },
+    'sucker-punch':  { proj: 'streak' },
+    'pound':         { melee: 'impact' },
+    'play-rough':    { melee: 'impact' },
+    'scratch':       { melee: 'claw' },
+    'slash':         { melee: 'claw' },
+    'fury-swipes':   { proj: 'crescent' },
+    'feint-attack':  { proj: 'crescent', trail: 'wisp' }
   };
 
   const TYPE_SHAPE = {

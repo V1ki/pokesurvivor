@@ -34,6 +34,11 @@ G.I18n.add({
   'Placaje': 'Tackle', 'Ataque Rápido': 'Quick Attack', 'Golpe Cuerpo': 'Body Slam', 'Vozarrón': 'Hyper Voice', 'Derribo': 'Take Down',
   'Velocidad Extrema': 'Extreme Speed', 'Gigaimpacto': 'Giga Impact', 'Alboroto': 'Uproar', 'Danza Espada': 'Swords Dance',
   'Agilidad': 'Agility', 'Fortaleza': 'Harden', 'Surf': 'Surf',
+  'Doble Filo': 'Double-Edge', 'Golpe Cabeza': 'Headbutt', 'Impresionar': 'Astonish', 'Golpe Bajo': 'Sucker Punch',
+  'Destructor': 'Pound', 'Carantoña': 'Play Rough', 'Arañazo': 'Scratch', 'Cuchillada': 'Slash', 'Golpes Furia': 'Fury Swipes',
+  'Finta': 'Feint Attack', 'Hiperrayo': 'Hyper Beam', 'Megapatada': 'Mega Kick', 'Viento Aciago': 'Ominous Wind',
+  'Tajo Umbrío': 'Night Slash', 'Megapuño': 'Mega Punch', 'Choque Anímico': 'Spirit Break', 'Garra Brutal': 'Crush Claw',
+  'Guillotina': 'Guillotine', 'Hipercolmillo': 'Hyper Fang', 'Juego Sucio': 'Foul Play',
 
   // descripciones de los movimientos
   'Abanico de tres hojas perforantes.': 'A fan of three piercing leaves.',
@@ -89,6 +94,16 @@ G.I18n.add({
   'Ventisca a tu alrededor que ralentiza.': 'A blizzard around you that slows foes.',
   'Vibración constante que machaca lo cercano.': 'A constant vibration that pounds everything nearby.',
   'Zarpazo de acero en arco.': 'A steel swipe in an arc.',
+  'Embestida a todo o nada: arrollas todo a tu paso, pero tarda en recargar.': 'An all-or-nothing charge that flattens everything in your path, but is slow to recharge.',
+  'Cabezazo hacia delante que hace retroceder mucho.': 'A forward headbutt that knocks foes far back.',
+  'Susto repentino: sombras en todas direcciones que frenan.': 'A sudden scare: shadows in every direction that slow foes.',
+  'Te adelantas al enemigo con un golpe rápido a traición.': 'You strike first with a quick, sneaky blow.',
+  'Golpe seco y rápido delante de ti.': 'A quick, sharp blow in front of you.',
+  'Te lanzas a pelear sin control: golpes en un arco muy amplio.': 'You brawl wildly, hitting in a very wide arc.',
+  'Zarpazo rápido con las garras.': 'A quick swipe of the claws.',
+  'Tajo amplio con garras afiladas que llega más lejos.': 'A wide slash with sharp claws that reaches further.',
+  'Ráfaga de zarpazos cortos en abanico delante de ti.': 'A flurry of short swipes in a fan in front of you.',
+  'Finge un ataque y nunca falla: va solo a por el enemigo.': 'A feint that never misses: it homes in on the enemy.',
 
   // mejoras de los movimientos
   '+1 proyectil': '+1 projectile', '+1 proyectil y +1 perforación': '+1 projectile and +1 pierce', '+45% daño': '+45% damage',

@@ -25,7 +25,8 @@ for (const f of ['js/data/lang-en.js', 'js/core/settings.js', 'js/data/pokedex.j
                  'js/data/items.js', 'js/data/achievements.js', 'js/world/tiles.js', 'js/data/funding.js']) {
   try { load(f); } catch (e) { console.warn('aviso', f, e.message); }
 }
-const moves = Object.values(G.Moves.BY_ID).map(m => {
+// los `learn` todavía no salen en el juego (sólo por la lista de cada Pokémon): fuera de la web
+const moves = Object.values(G.Moves.BY_ID).filter(m => !m.learn).map(m => {
   const inst = G.Moves.instance(m.id, m.maxLvl || 5);
   const evo = G.Moves.evoInfo(inst, {});
   return { id: m.id, name: m.name, type: m.type, kind: m.kind, desc: m.desc, maxLvl: m.maxLvl, evo: evo ? { name: evo.name, needs: evo.needName, text: evo.text } : null };

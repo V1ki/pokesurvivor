@@ -398,7 +398,52 @@
 
     { id: 'hex', name: 'Infortunio', type: 'ghost', kind: 'chain',
       desc: 'Maldición que salta entre enemigos. Mucho más daño si están quemados, envenenados o frenados.',
-      cd: 0.9, dmg: 17, count: 4, radius: 150, hex: 1.7 }
+      cd: 0.9, dmg: 17, count: 4, radius: 150, hex: 1.7 },
+
+    // ---------------- de la lista de movimientos de cada Pokémon (14-10-2026) ----------------
+    // Los ataques de los juegos que más Pokémon aprenden por nivel y aquí faltaban
+    // (tools/fetch_evolutions.py). `learn`: NO entran en el pool por tipo (las cartas de
+    // ahora); sólo los dará la lista de cada Pokémon (js/data/learnsets.js) cuando el juego
+    // la use. Mismas formas y gráficos que los demás.
+    { id: 'double-edge', name: 'Doble Filo', type: 'normal', kind: 'dash', learn: true,
+      desc: 'Embestida a todo o nada: arrollas todo a tu paso, pero tarda en recargar.',
+      cd: 1.05, dmg: 30, radius: 130, width: 44, knock: 120 },
+
+    { id: 'headbutt', name: 'Golpe Cabeza', type: 'normal', kind: 'melee', learn: true,
+      desc: 'Cabezazo hacia delante que hace retroceder mucho.',
+      cd: 0.60, dmg: 17, radius: 44, arc: 1.3, knock: 150 },
+
+    { id: 'astonish', name: 'Impresionar', type: 'ghost', kind: 'nova', learn: true,
+      desc: 'Susto repentino: sombras en todas direcciones que frenan.',
+      cd: 1.0, dmg: 9, speed: 220, count: 8, pierce: 0, life: 0.9, size: 7, slow: 0.35 },
+
+    { id: 'sucker-punch', name: 'Golpe Bajo', type: 'dark', kind: 'dash', learn: true,
+      desc: 'Te adelantas al enemigo con un golpe rápido a traición.',
+      cd: 0.60, dmg: 17, radius: 95, width: 34, knock: 50 },
+
+    { id: 'pound', name: 'Destructor', type: 'normal', kind: 'melee', learn: true,
+      desc: 'Golpe seco y rápido delante de ti.',
+      cd: 0.42, dmg: 11, radius: 46, arc: 1.5, knock: 70 },
+
+    { id: 'play-rough', name: 'Carantoña', type: 'fairy', kind: 'melee', learn: true,
+      desc: 'Te lanzas a pelear sin control: golpes en un arco muy amplio.',
+      cd: 0.60, dmg: 16, radius: 50, arc: 2.2, knock: 80 },
+
+    { id: 'scratch', name: 'Arañazo', type: 'normal', kind: 'melee', learn: true,
+      desc: 'Zarpazo rápido con las garras.',
+      cd: 0.38, dmg: 10, radius: 44, arc: 1.5, knock: 40 },
+
+    { id: 'slash', name: 'Cuchillada', type: 'normal', kind: 'melee', learn: true,
+      desc: 'Tajo amplio con garras afiladas que llega más lejos.',
+      cd: 0.55, dmg: 15, radius: 56, arc: 1.9, knock: 50 },
+
+    { id: 'fury-swipes', name: 'Golpes Furia', type: 'normal', kind: 'cone', learn: true,
+      desc: 'Ráfaga de zarpazos cortos en abanico delante de ti.',
+      cd: 0.60, dmg: 5, count: 6, arc: 1.1, speed: 360, life: 0.3, size: 6, pierce: 1 },
+
+    { id: 'feint-attack', name: 'Finta', type: 'dark', kind: 'projectile', learn: true,
+      desc: 'Finge un ataque y nunca falla: va solo a por el enemigo.',
+      cd: 0.62, dmg: 15, speed: 300, count: 1, spread: 0.1, pierce: 0, life: 2.0, size: 8, homing: 5 }
   ];
 
   // Cuerpo a cuerpo (12-10-2026): +20 % de daño y +25 % de alcance y de arco
@@ -412,8 +457,9 @@
   }
 
   // Pool de movimientos por tipo. El pool `normal` lo tienen todos.
+  // Los `learn` no entran: sólo saldrán por la lista de movimientos de cada Pokémon.
   const POOL = {};
-  for (const m of RAW) (POOL[m.type] = POOL[m.type] || []).push(m.id);
+  for (const m of RAW) if (!m.learn) (POOL[m.type] = POOL[m.type] || []).push(m.id);
 
   const BY_ID = {};
   for (const m of RAW) {
@@ -517,7 +563,12 @@
     'hail': ['Alud', 'cd'],                  'meteor-mash': ['Bomba Imán', 'atk'],
     'will-o-wisp': ['Infierno', 'cd'],       'substitute': ['Doble Equipo', 'def'],
     'aerial-ace': ['Acróbata', 'spd'],       'flame-wheel': ['Envite Ígneo', 'spd'],
-    'bubble-beam': ['Acua Cola', 'atk'],     'hex': ['Poltergeist', 'mag']
+    'bubble-beam': ['Acua Cola', 'atk'],     'hex': ['Poltergeist', 'mag'],
+    'double-edge': ['Hiperrayo', 'atk'],     'headbutt': ['Megapatada', 'hp'],
+    'astonish': ['Viento Aciago', 'spd'],    'sucker-punch': ['Tajo Umbrío', 'cd'],
+    'pound': ['Megapuño', 'atk'],            'play-rough': ['Choque Anímico', 'atk'],
+    'scratch': ['Garra Brutal', 'cd'],       'slash': ['Guillotina', 'atk'],
+    'fury-swipes': ['Hipercolmillo', 'spd'], 'feint-attack': ['Juego Sucio', 'cd']
   };
   // Lo que gana al evolucionar, según cómo funcione.
   const EVO_MODS = {

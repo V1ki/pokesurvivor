@@ -1120,6 +1120,23 @@ G.I18n.add({
   '×1,8 daño, charcos más grandes y duraderos': '×1.8 伤害，水洼更大、持续更久',
   '×1,7 daño, +4 disparos y +1 perforación': '×1.7 伤害，+4 投射物，+1 穿透',
 
+  // ---------------- 2026-10-14: movimientos de la lista de cada Pokémon ----------------
+  'Doble Filo': '舍身冲撞', 'Golpe Cabeza': '头锤', 'Impresionar': '惊吓', 'Golpe Bajo': '突袭', 'Destructor': '拍击',
+  'Carantoña': '嬉闹', 'Arañazo': '抓', 'Cuchillada': '劈开', 'Golpes Furia': '乱抓', 'Finta': '出奇一击',
+  'Hiperrayo': '破坏光线', 'Megapatada': '百万吨重踢', 'Viento Aciago': '奇异之风', 'Tajo Umbrío': '暗袭要害',
+  'Megapuño': '百万吨重拳', 'Choque Anímico': '灵魂冲击', 'Garra Brutal': '撕裂爪', 'Guillotina': '断头钳',
+  'Hipercolmillo': '必杀门牙', 'Juego Sucio': '欺诈',
+  'Embestida a todo o nada: arrollas todo a tu paso, pero tarda en recargar.': '孤注一掷的冲撞：碾过路上的一切，但冷却很长。',
+  'Cabezazo hacia delante que hace retroceder mucho.': '向前头锤，把敌人撞飞很远。',
+  'Susto repentino: sombras en todas direcciones que frenan.': '突然惊吓：向四面八方放出减速的暗影。',
+  'Te adelantas al enemigo con un golpe rápido a traición.': '抢先一步，快速偷袭敌人。',
+  'Golpe seco y rápido delante de ti.': '在身前快速拍击。',
+  'Te lanzas a pelear sin control: golpes en un arco muy amplio.': '不管不顾地扑上去打闹，攻击范围很宽。',
+  'Zarpazo rápido con las garras.': '用爪子快速一抓。',
+  'Tajo amplio con garras afiladas que llega más lejos.': '用锋利的爪子大幅劈砍，攻击距离更远。',
+  'Ráfaga de zarpazos cortos en abanico delante de ti.': '在身前扇形范围内连续乱抓。',
+  'Finge un ataque y nunca falla: va solo a por el enemigo.': '假装出招、必定命中：会自动追踪敌人。',
+
   // ---------------- eventos y duendes (2026-10-10) ----------------
   '¡Horda de tipo {x}!': '{x}属性宝可梦群来袭！',
   '¡Hora dorada! Doble de experiencia': '黄金时间！经验翻倍',
