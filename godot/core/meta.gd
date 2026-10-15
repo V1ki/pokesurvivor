@@ -1,7 +1,8 @@
 class_name Meta
 extends RefCounted
 ## Glue between a run and the save (game.js startRun / bankTickets / endRun, Phase 4):
-## run options from the per-Pokémon upgrades, ticket banking, coins formula, end-of-run stats.
+## run options from the trainer upgrades and the partner's family (core/families.gd), ticket
+## banking, coins formula, end-of-run stats and family XP.
 
 ## End-of-run coins (game.js endRun): round((floor(t/5) + floor(kills/4) + 80*bosses + picked) * mul).
 static func run_coins(time: float, kills: int, bosses: int, picked: int, mul: float) -> Dictionary:
@@ -15,16 +16,17 @@ static func run_coins(time: float, kills: int, bosses: int, picked: int, mul: fl
 	var txt := " · ".join(bd) + (" · ×%.2f Fortuna" % mul if mul > 1.0 else "")
 	return {"coins": coins, "parts": parts, "breakdown": txt}
 
-## Partner + Sim.start_run options for the saved partner: {dex, opts}.
+## Partner + Sim.start_run options for the saved partner: {dex, opts}. Perks: the trainer's
+## upgrades + its family's level and stars; moves: the ones its family knows (game.js startRun).
 static func run_setup(fallback_dex := 4) -> Dictionary:
 	if not Save.loaded or Save.data.get("partner") == null:
 		return {"dex": fallback_dex, "opts": {}}
 	var s := Save.data
 	var dex := Save.partner()
-	var perks := Upgrades.perks(Save.upgrades_of(dex))
 	var bind: Array = s["pbind"].get(str(dex), []) if s.get("pbind") is Dictionary else []
-	var ban: Array = s["pban"].get(str(dex), []) if s.get("pban") is Dictionary else []
-	return {"dex": dex, "opts": {"perks": perks, "bind": bind, "ban": ban,
+	var known := Families.known(s, dex)
+	return {"dex": dex, "opts": {"perks": Families.perks(s, dex), "bind": bind,
+		"start_moves": Families.start_moves(s, dex, known), "pool": Families.pool_of(dex, known),
 		"shiny": bool(s.get("partnerShiny", false)) and Save.owns_shiny(dex)}}
 
 static var _banked := {"t1": 0, "t10": 0}
@@ -55,6 +57,10 @@ static func apply_run(r: Dictionary, pl: Player) -> void:
 	var st: Dictionary = s["stats"]
 	r["record"] = float(r["time"]) > float(st.get("bestTime", 0))
 	s["coins"] = int(s["coins"]) + int(r["coins"])
+	# XP for the partner's family (Families.gain_xp: {f, lv, ups, xp, need, gained}, shown in the results)
+	if pl != null:
+		r["dex"] = pl.dex
+		r["fam"] = Families.gain_xp(s, pl.dex, {"time": float(r["time"]), "kills": int(r["kills"]), "bosses": int(r["bosses"])})
 	bank_tickets(pl, false)
 	st["runs"] = Save.stat("runs") + 1
 	st["totalKills"] = Save.stat("totalKills") + int(r["kills"])

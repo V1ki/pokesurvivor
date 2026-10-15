@@ -56,8 +56,10 @@ func _init() -> void:
 
 # ---------------- run lifecycle ----------------
 
-## opts (Phase 4 meta-progression, all optional): {shiny: bool, perks: Upgrades.perks(),
-## bind: [moveId|null x4] (save.pbind[dex]), ban: [moveId] (save.pban[dex])} — game.js startRun.
+## opts (Phase 4 meta-progression, all optional): {shiny: bool, perks: Families.perks() (or
+## Upgrades.perks()), bind: [moveId|null x4] (save.pbind[dex]), start_moves: [moveId] and pool:
+## [moveId] (Families.start_moves / pool_of: what it starts with and what the cards may offer),
+## ban: [moveId] (old saves' Veto, without start_moves)} — game.js startRun.
 func start_run(partner_dex := 4, seed := -1, opts := {}) -> void:
 	Sim.cur = self
 	var perks: Dictionary = opts.get("perks", {})
@@ -104,6 +106,14 @@ func _apply_meta(opts: Dictionary, perks: Dictionary) -> void:
 	for i in mini(4, bind.size()):
 		if bind[i] is String:
 			player.bind[bind[i]] = i
+	if opts.has("start_moves"):
+		# its family's moves (core/families.gd): the cards offer only those
+		player.move_pool = (opts.get("pool", []) as Array).duplicate()
+		for id in opts["start_moves"]:
+			if Data.move_by.has(id):
+				player.add_move(id)
+		player.set_active(0)
+		return
 	player.add_move(Moves.start_move_of(player.dex))
 	var ban: Array = opts.get("ban", [])
 	for id in ban.slice(0, int(perks.get("bans", 0))):

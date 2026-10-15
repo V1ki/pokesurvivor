@@ -183,7 +183,7 @@ func refresh() -> void:
 		_rates.add_child(h)
 	var hs := UIKit.hbox(6, [UIKit.icon("shiny", 12), UIKit.label("Shiny", 15, UIKit.SHINY), UIKit.spacer(0, 0, true), UIKit.label("1%", 15)])
 	_rates.add_child(hs)
-	var note := UIKit.label("· La tirada ×10 garantiza al menos una Épica.\n· A las %d tiradas sin Legendaria en un banner, la siguiente lo es.\n· Los repetidos dan Pokémonedas. Los shiny no se repiten.\n· Los tickets se consiguen jugando: algunos Pokémon los sueltan al caer, y los jefes y los legendarios de las grietas, a veces, tickets ×10." % int(Gacha.cfg()["pity"]),
+	var note := UIKit.label("· La tirada ×10 garantiza al menos una Épica.\n· A las %d tiradas sin Legendaria en un banner, la siguiente lo es.\n· Los repetidos dan fragmentos: de la familia de tu compañero si son de ella, y si no, fragmentos universales (2 valen 1 de cualquier familia). Los shiny no se repiten.\n· Los tickets se consiguen jugando: algunos Pokémon los sueltan al caer, y los jefes y los legendarios de las grietas, a veces, tickets ×10." % int(Gacha.cfg()["pity"]),
 		13, UIKit.MUTED, HORIZONTAL_ALIGNMENT_LEFT, true)
 	note.custom_minimum_size = Vector2(200 if UIKit.compact else 290, 0)
 	_rates.add_child(UIKit.spacer(0, 6))
@@ -295,6 +295,8 @@ func _pull(n: int, use: String) -> void:
 		Sfx.play("error")
 		ui.toast("No tienes tickets suficientes: consíguelos jugando")
 		return
+	# duplicates give shards instead of coins (core/families.gd)
+	Families.after_pull(Save.data, res)
 	Progress.check_ach()
 	Save.commit()
 	_busy = true
@@ -363,7 +365,9 @@ func _card(r: Dictionary) -> PanelContainer:
 	if r["isNew"]:
 		v.add_child(UIKit.label("¡SHINY NUEVO!" if r["shiny"] else "¡NUEVO!", 10 if c else 13, UIKit.GOLD, HORIZONTAL_ALIGNMENT_CENTER))
 	else:
-		var tg := UIKit.hbox(4, [UIKit.label("Repetido ·", 10 if c else 12, UIKit.MUTED), UIKit.icon("coin", 12), UIKit.label("+%d" % int(r["refund"]), 10 if c else 12, UIKit.GOLD)])
+		var got := ("+%d fragmentos" % int(r["shards"])) if int(r.get("shards", 0)) > 0 else ("+%d universales" % int(r.get("uni", 0)))
+		var tg := UIKit.hbox(4, [UIKit.label("Repetido", 10 if c else 12, UIKit.MUTED), UIKit.label("·", 10 if c else 12, UIKit.MUTED),
+			UIKit.icon("star", 12), UIKit.label(got, 10 if c else 12, UIKit.GOLD)])
 		tg.alignment = BoxContainer.ALIGNMENT_CENTER
 		v.add_child(tg)
 	# pop-in (scale .94 -> 1 + fade, .3 s); legendaries (1.4 s) and shinies (1.1 s) pulse their

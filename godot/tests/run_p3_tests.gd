@@ -8,6 +8,7 @@ var fails := 0
 func _initialize() -> void:
 	seed(20261013)
 	Data.ensure()
+	EnemyDefs.set_mode("tier")      # the JS vectors are computed with the tier model (tools/export_godot.js)
 	Phase3Tests.run(self)
 	print("== %d passed, %d failed ==" % [passes, fails])
 	quit(1 if fails > 0 else 0)

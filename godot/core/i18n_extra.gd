@@ -9,6 +9,9 @@ extends RefCounted
 
 const EN := {
 	# ---- HUD / run ----
+	# wild level line and boss bar (js/ui/hud.js): before "{x} Nv.{x}", which would also take them
+	"POKÉMON SALVAJES NV. {x}": "WILD POKÉMON LV. {x}",
+	"{x} · NV. {x}": "{x} · LV. {x}",
 	"Nv. {x}": "Lv. {x}",
 	"Nv.{x}": "Lv.{x}",
 	"{x} Nv.{x}": "{x} Lv.{x}",
@@ -111,6 +114,8 @@ const EN := {
 
 const ZH := {
 	# ---- HUD / run ----
+	"POKÉMON SALVAJES NV. {x}": "野生宝可梦 {x} 级",
+	"{x} · NV. {x}": "{x} · 等级 {x}",
 	"Nv. {x}": "Lv. {x}",
 	"Nv.{x}": "Lv.{x}",
 	"{x} Nv.{x}": "{x} Lv.{x}",

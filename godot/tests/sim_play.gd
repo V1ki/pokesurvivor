@@ -24,9 +24,10 @@ extends SceneTree
 ##   --prof         (forces --jobs=1) time per frame: bot vs Sim.update and its sections
 ##   --learnset=<lv>  moves from the partner's learnset at that family level (debug/family_rules.gd:
 ##                  it starts with the first one, the cards offer only those) instead of its types
-##   --enemies=level  wild Pokémon with levels (sim/enemy_defs.gd "wild levels": stats from base stats
-##                  and level, forms by evolution level) instead of the game's tiers;
-##                  --enemy-set=k=v,... changes its numbers (EnemyDefs.LV_DEFAULTS), e.g. lv0=5,lv_min=4
+##   --enemies=tier   the previous enemy model (BST tiers by run time × time curves) instead of the
+##                  game's wild levels (sim/enemy_defs.gd "wild levels": stats from base stats and
+##                  level, forms by evolution level); --enemy-set=k=v,... changes the level numbers
+##                  (EnemyDefs.LV_DEFAULTS), e.g. lv0=5,lv_min=4
 ##
 ## Campaign (an account that grows): --campaign=<n> [--accounts=4] [--save-dir=<dir>]
 ##   every account starts like a new one (500 coins, no upgrades) and plays n runs in a row; after
@@ -45,8 +46,8 @@ extends SceneTree
 ##       Pokémon; each evolution family levels up by playing, which gives damage / cooldown / crits /
 ##       a 2nd move and unlocks its learnset; it evolves at the original level once the form is
 ##       owned (pulled, or unlocked with shards from duplicates); --rules-set=k=v,... changes its numbers
-##   Each rule's accounts are saved apart (<profile>_<k>.json, _shared.json, _family.json; + _lv with
-##   --enemies=level).
+##   Each rule's accounts are saved apart (<profile>_<k>.json, _shared.json, _family.json; + _tier with
+##   --enemies=tier, + _lv with the wild level numbers changed by --enemy-set).
 ##   --campaign=0 --save-dir=<dir> only prints the report of the saved accounts (even while another
 ##   campaign is still playing them: they are saved after every run).
 ##   Not simulated: missions and achievements (and their tickets), lost Pokémon joining you.
@@ -711,8 +712,13 @@ func _campaign(args: Dictionary, profiles: Array, partner: int, seed0: int, jobs
 	if EnemyDefs.mode == "level":
 		print(_enemies_line())
 	var rule := _rule_of(args)
-	# level-mode accounts are kept apart too (<profile>_<k>[_rule]_lv.json)
-	var suffix := ("" if rule == "per_mon" else "_" + rule) + ("_lv" if EnemyDefs.mode == "level" else "")
+	# accounts of another enemy model are kept apart (<profile>_<k>[_rule]_tier.json); level-mode ones
+	# with changed numbers too (_lv)
+	var suffix := ("" if rule == "per_mon" else "_" + rule)
+	if EnemyDefs.mode == "tier":
+		suffix += "_tier"
+	elif args.has("enemy-set"):
+		suffix += "_lv"
 	var tasks: Array = []
 	var totals := {}
 	for prof in profiles:

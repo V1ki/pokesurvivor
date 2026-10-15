@@ -32,9 +32,14 @@ load('js/data/lang-en.js'); load('js/core/settings.js'); load('js/data/music.js'
 load('js/data/evolutions.js'); load('js/data/learnsets.js');       // families and learnsets (tools/fetch_evolutions.py)
 G.Sprites = { PX: 2, hovers: d => !!(G.SPRITE_META[d] && G.SPRITE_META[d].hv), hasShiny: d => !!(G.SPRITE_META[d] && G.SPRITE_META[d].sh) };
 load('js/data/moves.js', s => s.replace('G.Moves = { ALL: RAW,', 'G.Moves = { LADDERS, EVO_MODS, START, MULT, ADD, ALL: RAW,'));
-load('js/data/enemies.js', s => s.replace('TIERS, BOSS_SLOTS, LATE_FROM,', 'behaviorOf, defFor, HEAL: [...HEAL], SHIELD: [...SHIELD], BOMB: [...BOMB], SUMMON, TIERS, BOSS_SLOTS, LATE_FROM,'));
+load('js/data/enemies.js', s => s.replace('TIERS, BOSS_SLOTS, LATE_FROM,', 'HEAL: [...HEAL], SHIELD: [...SHIELD], BOMB: [...BOMB], SUMMON, TIERS, BOSS_SLOTS, LATE_FROM,'));
 for (const f of ['js/data/types.js', 'js/data/starters.js', 'js/data/upgrades.js', 'js/data/items.js',
                  'js/data/missions.js', 'js/data/achievements.js', 'js/world/tiles.js']) load(f);
+load('js/systems/families.js');     // evolution levels: where each wild form appears (enemies.js levels)
+// The game's wild Pokémon have levels (G.Enemies MODE 'level', 2026-10-15). Every vector below is
+// computed with the tier model, as before (the Godot tests that use them set EnemyDefs to "tier");
+// the level model has its own file, test_vectors_levels.json (exportLevels at the end).
+G.Enemies.setMode('tier');
 load('js/entities/vfx.js', s => s.replace('return { PAL, SHAPES, draw,', 'return { grid, MOVE, TYPE_SHAPE, PAL, SHAPES, draw,'));
 load('js/ui/icons.js', s => s.replace('return { canvas, url,', 'return { KIND_GLYPH, canvas, url,'));
 load('js/systems/levelup.js'); load('js/systems/gacha.js');
@@ -59,7 +64,7 @@ files['types.json'] = { chart: G.Types.CHART, soft: { '2': 1.6, '0.5': 0.6, '0':
   order: Object.keys(G.U.TYPE_NAME), color: G.U.TYPE_COLOR, name_es: G.U.TYPE_NAME };
 files['starters.json'] = { starters: G.STARTERS, test: G.PERSONALITY_TEST, trait_text: G.TRAIT_TEXT };
 const E = G.Enemies;
-files['enemies.json'] = { tiers: E.TIERS, boss_slots: E.BOSS_SLOTS, late_from: E.LATE_FROM,
+files['enemies.json'] = { mode: 'level', levels: E.LV_DEFAULTS, tiers: E.TIERS, boss_slots: E.BOSS_SLOTS, late_from: E.LATE_FROM,
   heal: E.HEAL, shield: E.SHIELD, bomb: E.BOMB, summon: E.SUMMON,
   behavior_by_dex: Object.fromEntries(G.DEX.map(p => [p.dex, E.behaviorOf(p)])),          // verification table
   candidates_by_tier: E.TIERS.map(t => E.candidates(t).map(p => p.dex)) };
@@ -165,13 +170,61 @@ for (const [name, data] of Object.entries(files)) {
     pbind: { 4: ['ember', 'ember', 'nope', 'tackle', 'scratch'], 7: 'x' }, pban: { 4: ['tackle', 'tackle', 'growl', 'nope', 'ember', 'scratch'] },
     pupg: { 7: { hp: 99, zzz: 3, atk: -2, crit: '4' }, 1: null }
   };
+  // migrate stamps stats.famAt with Date.now() the first time (v3 -> v4): a fixed "now" here and
+  // in the Godot test (Save.now_override = save.now)
+  const NOW = 1792000000000;
+  const atNow = fn => { const old = Date.now; Date.now = () => NOW; try { return fn(); } finally { Date.now = old; } };
   out.save = {
+    now: NOW,
     fixture: fs.existsSync(fixPath) ? { input: JSON.parse(fs.readFileSync(fixPath, 'utf8')) } : null,
     legacy: { input: clone(legacy) },
     new_save_keys: Object.keys(DB.newSave('x')), new_save_stats: Object.keys(DB.newSave('x').stats)
   };
-  if (out.save.fixture) out.save.fixture.output = DB.migrate(clone(out.save.fixture.input), 'Invitado');
-  out.save.legacy.output = DB.migrate(clone(legacy), '');
+  if (out.save.fixture) out.save.fixture.output = atNow(() => DB.migrate(clone(out.save.fixture.input), 'Invitado'));
+  out.save.legacy.output = atNow(() => DB.migrate(clone(legacy), ''));
+  // ...and a migrated save migrates again to itself (the conversion runs on every load)
+  out.save.legacy.again = atNow(() => DB.migrate(clone(out.save.legacy.output), ''));
+
+  // --- families (systems/families.js): moves, start moves, perks, XP, shards, unlock, stars ---
+  { const F = G.Families;
+    const fsave = (lv, extra) => { const s = DB.newSave('F'); s.created = 1; Object.assign(s, extra || {}); s.fams = {}; return s; };
+    const at = (s, dex, lv) => { F.fam(s, F.famOf(dex)).lv = lv; return s; };
+    const mv = l => l.map(e => e[2] === 'basic' ? [e[0], e[1], 'basic'] : [e[0], e[1]]);
+    const fam = { r: F.R, req: G.DEX.map(p => [p.dex, F.famOf(p.dex), F.reqLevel(p.dex), F.stage(p.dex), F.isFinal(p.dex) ? 1 : 0]),
+      names: [1, 4, 25, 133, 147, 813, 906].map(d => [d, F.famName(F.famOf(d))]),
+      moves: G.DEX.map(p => [p.dex, mv(F.movesOf(p.dex))]),
+      known: [1, 20, 45].map(lv => ({ lv, rows: G.DEX.map(p => { const s = at(fsave(), p.dex, lv); const k = F.known(s, p.dex);
+        return [p.dex, mv(k), F.startMoves(s, p.dex, k), F.shown(s, p.dex).length, F.poolOf(p.dex, k)]; }) })),
+      perks: [[4, 1, 0, {}], [4, 30, 2, { hp: 3, def: 2, coins: 5 }], [813, 60, 5, { hp: 10, regen: 4, spd: 6, magnet: 3, xp: 2, reroll: 3 }], [143, 12, 1, { def: 1 }]]
+        .map(([dex, lv, stars, trainer]) => { const s = at(fsave(), dex, lv); s.trainer = trainer; F.fam(s, F.famOf(dex)).stars = stars;
+          return { dex, lv, stars, trainer, perks: F.perks(s, dex) }; }),
+      bonus: [1, 2, 19, 20, 40, 60].map(lv => [lv, F.levelBonus(lv)]),
+      xp: (() => { const s = fsave(); const runs = [[61.5, 40, 0], [180, 220, 1], [3000, 9000, 5], [0, 0, 0], [999999, 0, 0], [12.4, 3, 0]];
+        return runs.map(([time, kills, bosses]) => ({ run: { time, kills, bosses }, r: F.gainXp(s, 4, { time, kills, bosses }), fam: Object.assign({}, F.fam(s, F.famOf(4))) })); })()
+    };
+    // duplicates -> shards: seeded pulls on a save whose partner is Charmander
+    fam.pulls = ['f-a', 'f-b', 'f-c'].map(seed => {
+      const s = DB.newSave('Shards'); s.created = 1; s.partner = 4; s.coins = 1000; s.tickets = { t1: 400, t10: 0 };
+      for (const d of [1, 4, 5, 7, 10, 13, 16, 19, 25]) s.owned[d] = { at: 1, from: 'gacha' };
+      const steps = withRandom(seed, () => { const r = []; for (let k = 0; k < 30; k++) { const res = G.Gacha.pull(s, 10, 1, 't1'); F.afterPull(s, res); r.push(res); } return r; });
+      return { seed, steps, coins: s.coins, uni: s.uni, fams: s.fams };
+    });
+    // unlock with shards, stars once complete
+    { const s = DB.newSave('Unlock'); s.created = 1; s.partner = 4; s.owned = { 4: { at: 5, from: 'starter' } }; s.stats.famAt = 10;
+      const f = F.famOf(4), log = [];
+      const snap = what => log.push([what, F.usable(s, 4), F.usable(s, 5), F.usable(s, 6), F.canUnlock(s, 5), F.canUnlock(s, 6), F.canStar(s, f),
+        F.shardsFor(s, f), JSON.parse(JSON.stringify(F.fam(s, f))), s.uni, Object.keys(s.owned).map(Number).sort((a, b) => a - b)]);
+      snap('start');
+      F.fam(s, f).shards = 15; s.uni = 13; snap('shards');
+      log.push(['unlock5 lv1', F.unlock(s, 5)]); snap('after');
+      F.fam(s, f).lv = 16; log.push(['unlock5 lv16', atNow(() => F.unlock(s, 5))]); snap('after');
+      F.fam(s, f).lv = 36; F.fam(s, f).shards = 100; log.push(['unlock6', atNow(() => F.unlock(s, 6))]); snap('after');
+      for (let i = 0; i < 4; i++) log.push(['star', F.star(s, f)]);
+      snap('stars');
+      s.owned[150] = { at: 3, from: 'gacha' }; s.owned[149] = { at: 30, from: 'gacha' };
+      log.push(['legacy', F.legacy(s, 150), F.legacy(s, 149), F.usable(s, 149), F.reqLevel(149)]);
+      fam.unlock = { log, owned: s.owned }; }
+    out.families = fam; }
 
   // --- end-of-run coins (formula copied from game.js endRun, evaluated by V8) ---
   const coinCase = ([time, kills, bosses, picked, mul]) => {
@@ -866,6 +919,35 @@ for (const [name, data] of Object.entries(files)) {
   const s3b = JSON.stringify(out);
   fs.writeFileSync(path.join(OUT, 'test_vectors_p3b.json'), s3b);
   console.log('test_vectors_p3b.json'.padEnd(22), (s3b.length / 1024).toFixed(1).padStart(7), 'KB');
+})();
+
+// ============ Wild levels (G.Enemies MODE 'level') -> test_vectors_levels.json ============
+// Where each form appears, the cast groups, every species' stats at a few levels, the level curve
+// and rolled bosses (seeded), for godot/tests/level_tests.gd.
+(function exportLevels() {
+  const oldRandom = Math.random;
+  Math.random = rng('levels-20261015');
+  E.setMode('level');
+  const ts = E.tiers();
+  const row = d => [d.dex, d.behavior, d.level, d.hp, d.dmg, d.spd, d.xp, d.shotDmg === undefined ? null : d.shotDmg, d.appear, d.leave];
+  const out = {
+    lv_defaults: E.LV_DEFAULTS,
+    appear: G.DEX.map(p => [p.dex, E.appearLevel(p.dex), E.leaveLevel(p.dex)]),
+    tiers: ts.map(t => ({ from: t.from, lv: t.lv, dex: E.candidates(t).map(p => p.dex) })),
+    curve: [0, 30, 59, 60, 200, 360, 361, 500, 600, 900, 1500].map(t => [t, E.wildLevel(t)]),
+    horde_types: [0, 100, 140, 200, 300, 400, 500, 700, 1000].map(t => [t, E.hordeTypes(t)]),
+    time_of: [1, 3, 4, 12, 22, 27, 28, 32, 52, 90, 150].map(l => [l, E.timeOfLevel(l)]),
+    defs: [0, 2, 4].map(ti => ({ ti, rows: G.DEX.map(p => {
+      const d = E.defFor(p, ts[ti], ti);
+      return [row(d)].concat([1, 17, 60].map(l => row(E.atLevel(d, l))));
+    }) })),
+    bosses: Array.from({ length: 6 }, () => E.rollRun().bosses.map((b, slot) => ({ slot, def: Object.assign({}, b) }))).flat()
+  };
+  E.setMode('tier');
+  Math.random = oldRandom;
+  const s = JSON.stringify(out);
+  fs.writeFileSync(path.join(OUT, 'test_vectors_levels.json'), s);
+  console.log('test_vectors_levels.json'.padEnd(22), (s.length / 1024).toFixed(1).padStart(7), 'KB');
 })();
 
 // ============ Credits & licences -> godot/CREDITS.md + godot/assets/fonts/ ============

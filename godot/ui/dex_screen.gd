@@ -229,11 +229,17 @@ func _show_detail(d: int) -> void:
 	var rr := UIKit.hbox(6, [UIKit.rarity_icon(int(p["rarity"]), 24), UIKit.label(Gacha.rarity_name(int(p["rarity"])), 15, Gacha.rarity_color(int(p["rarity"])))])
 	rr.alignment = BoxContainer.ALIGNMENT_CENTER
 	_detail.add_child(rr)
+	var req := Families.req_level(d)
 	if not own:
 		var l := UIKit.label("Aún no lo tienes.\nConsíguelo en el banner de %s o derrotándolo cuando salga shiny." % UIKit.GEN_NAMES[int(p["gen"]) - 1],
 			14, UIKit.MUTED, HORIZONTAL_ALIGNMENT_CENTER, true)
 		l.custom_minimum_size = Vector2(210 if UIKit.compact else 290, 0)
 		_detail.add_child(l)
+		if req > 1:
+			var l2 := UIKit.label("También se desbloquea con fragmentos en Mejoras cuando su familia llega al nivel %d." % req,
+				13, UIKit.MUTED, HORIZONTAL_ALIGNMENT_CENTER, true)
+			l2.custom_minimum_size = l.custom_minimum_size
+			_detail.add_child(l2)
 		return
 	var tc := UIKit.type_chips(p["types"])
 	tc.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -241,29 +247,46 @@ func _show_detail(d: int) -> void:
 	_detail.add_child(_bar("Vida", float(p["hp"]), 183.0, str(int(p["hp"]))))
 	_detail.add_child(_bar("Ataque", float(p["atk"]), 1.55, "×%.2f" % float(p["atk"])))
 	_detail.add_child(_bar("Velocidad", float(p["spd"]), 137.0, str(int(p["spd"]))))
-	var sm := Moves.start_move_of(d)
-	var sl := UIKit.hbox(6, [UIKit.label("Empieza con", 14), UIKit.icon("move:" + sm, 16), UIKit.label(str(Moves.def(sm).get("name", sm)), 14, UIKit.GOLD)])
+	# its family (core/families.gd): level, the moves it starts with, every move by level
+	var fm := Families.fam_of_dex(s, d)
+	var fl := UIKit.hbox(6, [UIKit.label("Familia de %s" % Families.fam_name(Families.fam_of(d)), 14), UIKit.label("·", 14, UIKit.MUTED),
+		UIKit.label("Nv. %d" % int(fm["lv"]), 14, UIKit.GOLD)])
+	_detail.add_child(fl)
+	var sl := UIKit.hbox(6, [UIKit.label("Empieza con", 14)])
+	var smv := Families.start_moves(s, d)
+	for i in smv.size():
+		sl.add_child(UIKit.icon("move:" + str(smv[i]), 16))
+		sl.add_child(UIKit.label(str(Moves.def(smv[i]).get("name", smv[i])) + (" +" if i < smv.size() - 1 else ""), 14, UIKit.GOLD))
 	_detail.add_child(sl)
 	var mf := HFlowContainer.new()
-	mf.tooltip_text = "Movimientos que puede aprender"
+	mf.tooltip_text = "Movimientos que aprende (los apagados, con más nivel de familia)"
 	mf.mouse_filter = Control.MOUSE_FILTER_PASS
 	mf.add_theme_constant_override("h_separation", 4)
 	mf.add_theme_constant_override("v_separation", 4)
-	for id in Moves.pool_for(p):
-		var ic := UIKit.icon("move:" + str(id), 16)
-		ic.tooltip_text = str(Moves.def(id).get("name", id))
+	for e in Families.shown(s, d):
+		var ic := UIKit.icon("move:" + str(e[0]), 16)
+		var basic: bool = (e as Array).size() > 2 and e[2] == "basic"
+		ic.tooltip_text = "%s · %s" % [Moves.def(e[0]).get("name", e[0]), "Básico" if basic else "Nv. %d" % int(e[1])]
 		ic.mouse_filter = Control.MOUSE_FILTER_PASS
+		if int(e[1]) > int(fm["lv"]):
+			ic.modulate.a = 0.35
 		mf.add_child(ic)
 	_detail.add_child(mf)
 	if using_this:
 		var b := UIKit.button("Es tu compañero", "")
 		b.disabled = true
 		_detail.add_child(b)
-	else:
+	elif Families.usable(s, d):
 		_detail.add_child(UIKit.button("Elegir de compañero" + (" (shiny)" if view_shiny else ""), "GoldButton", func(): _pick(d, has_sh), "confirm"))
+	else:
+		var nb := UIKit.button("Necesita su familia a nivel %d" % req, "")
+		nb.disabled = true
+		_detail.add_child(nb)
 
 func _pick(d: int, has_sh: bool) -> void:
 	var s := Save.data
+	if not Families.usable(s, d):
+		return
 	s["partner"] = d
 	s["partnerShiny"] = has_sh and view_shiny
 	Save.commit()

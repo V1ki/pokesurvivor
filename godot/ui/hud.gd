@@ -87,13 +87,18 @@ func _draw() -> void:
 		Icons.draw(self, str(wx["icon"]), wx0 + 6.0, 17, 20)
 		DrawUtil.text(self, wtxt, wx0 + 32.0, 31, 11, _c(wx["color"]), -1, 800)
 
-	# ---------- boss bar ----------
+	# ---------- boss bar (with its level) / else the wild level (js/ui/hud.js) ----------
+	var boss_on := false
 	for e in sim.enemies.list:
 		if e.boss and not e.dead:
 			var bw := minf(420.0, w - 80.0)
 			DrawUtil.bar(self, (w - bw) / 2.0, 70, bw, 12, e.hp / e.max_hp, _c("#ffcb3d"))
-			DrawUtil.text(self, e.name.to_upper(), w / 2.0, 80, 10, _c("#20160a"), 0, 800)
+			var lvl := int(e.def.get("level", 0))
+			DrawUtil.text(self, e.name.to_upper() + ((" · NV. %d" % lvl) if lvl > 0 else ""), w / 2.0, 80, 10, _c("#20160a"), 0, 800)
+			boss_on = true
 			break
+	if not boss_on and EnemyDefs.mode == "level" and not sim.rift.in_arena:
+		DrawUtil.text(self, "POKÉMON SALVAJES NV. %d" % int(floorf(EnemyDefs.wild_level(sim.time))), w / 2.0, 74, 10, _c("#ffcb3d"), 0, 800)
 
 	# ---------- shinies off-screen: pulsing arrow on the edge ----------
 	var cam := sim.cam

@@ -75,11 +75,14 @@ func test_save() -> void:
 	var raw := FileAccess.get_file_as_string("res://tests/fixtures/web_guest_save.json")
 	var parsed: Variant = Save.parse(raw)
 	check("fixture (real web guest save) parses", parsed is Dictionary)
+	# the first v3 -> v4 migration stamps stats.famAt with "now": the JS vectors' fixed one
+	Save.now_override = int(V["save"].get("now", -1))
 	var out := Save.migrate(parsed, "Invitado")
 	var e := deq(out, fx["output"])
 	check("migrate(real web save) == JS migrate (deep, every field)", e == "", e)
-	check("fixture: 48 Pokémon, 716 coins, partner 936, created kept",
-		(out["owned"] as Dictionary).size() == 48 and int(out["coins"]) == 716 \
+	# 716 coins + 1950 back for its Veto levels (refunded the first time it moves to families)
+	check("fixture: 48 Pokémon, 716 + 1950 (Veto refund) coins, partner 936, created kept",
+		(out["owned"] as Dictionary).size() == 48 and int(out["coins"]) == 2666 \
 		and int(out["partner"]) == 936 and int(out["created"]) == 1791894369798)
 	# round trip: stringify -> parse -> migrate is stable and ints stay ints
 	var again := Save.migrate(Save.parse(JSON.stringify(out)), "Invitado")
@@ -89,6 +92,10 @@ func test_save() -> void:
 	var lg := Save.migrate(Save.parse(JSON.stringify(V["save"]["legacy"]["input"])), "")
 	e = deq(lg, V["save"]["legacy"]["output"])
 	check("migrate(legacy v1 save: pity number, account upgrades, bad dex/keys/moves/levels) == JS", e == "", e)
+	var lg2 := Save.migrate(Save.parse(JSON.stringify(lg)), "")
+	e = deq(lg2, V["save"]["legacy"]["again"])
+	check("migrating a v4 save again changes nothing (== JS, trainer / families kept)", e == "" and deq(lg2, lg) == "", e)
+	Save.now_override = -1
 
 # ---------------- coins ----------------
 
@@ -381,8 +388,8 @@ func test_import_path() -> void:
 	# as copied from localStorage (a JSON string of the JSON)
 	var err := Save.import_json(JSON.stringify(raw))
 	check("import_json(localStorage string value) ok", err == "", err)
-	check("imported: 48 Pokémon, 716 coins, partner 936, 4 tickets, 7 achievements",
-		Save.owned_count() == 48 and int(Save.data["coins"]) == 716 and Save.partner() == 936 \
+	check("imported: 48 Pokémon, 716 + 1950 (Veto refund) coins, partner 936, 4 tickets, 7 achievements",
+		Save.owned_count() == 48 and int(Save.data["coins"]) == 2666 and Save.partner() == 936 \
 		and int(Save.data["tickets"]["t1"]) == 4 and (Save.data["ach"] as Dictionary).size() == 7)
 	var file_txt := FileAccess.get_file_as_string(Save.path)
 	check("import wrote user://tests/save_test.json; backup of the previous save kept",

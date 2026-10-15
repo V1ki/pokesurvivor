@@ -17,14 +17,16 @@ static var _shield: Dictionary = {}
 static var _bomb: Dictionary = {}
 static var _summon: Dictionary = {}
 
-## "tier" (the game's): stats from the tier template of the run time × the time curves (scale,
-## Spawner.hp_k). "level" (being tested, --enemies=level in tests/sim_play.gd): every wild Pokémon
-## has a level that grows with the run time, and its stats come from its base stats and that level
-## with the main games' formula; a form appears from the level it evolves at (Charmeleon from 16)
-## and one that would have evolved leaves LV.linger levels later. See the "wild levels" section.
-static var mode := "tier"
+## "level" (the game's since 2026-10-15, js/data/enemies.js MODE): every wild Pokémon has a level
+## that grows with the run time, and its stats come from its base stats and that level with the
+## main games' formulas; a form appears from the level it evolves at (Charmeleon from 16) and one
+## that would have evolved leaves LV.linger levels later. See the "wild levels" section.
+## "tier" (the previous model, kept for the parity tests and tests/sim_play.gd --enemies=tier):
+## stats from the tier template of the run time × the time curves (scale, Spawner.hp_k).
+static var mode := "level"
 
-## Every number of the level mode; set_mode(mode, "k=v,k=v") overrides them. These are the ones
+## Every number of the level mode (= js/data/enemies.js LV_DEFAULTS, exported to data/enemies.json
+## "levels" and checked by tests/level_tests.gd); set_mode(mode, "k=v,k=v") overrides them. These are the ones
 ## the playtests picked (2026-10-15, variant "M11": new players last longer and die less all at
 ## once than with the tiers, fully upgraded ones about as long): Lv 3 at 0:00, 15 at 3:00, 27 at
 ## 6:00, then faster and faster (51 at 10:00, 104 at 15:00).
@@ -43,6 +45,7 @@ const LV_DEFAULTS := {
 	"xp_lv": 0.17,
 	"bands": [1.0, 12.0, 22.0, 32.0, 42.0, 52.0],   # cast groups by the level a form appears from
 	"linger": 15.0,      # a form that evolves keeps appearing up to its evolution level + this
+	"gate": 1.0,         # 1: each form waits for its own evolution level · 0: only its group's start
 	"boss_lv": 8.0,      # bosses: wild level + this,
 	"boss_hp": 5.0,      #   HP × this over a wild one of that species and level,
 	"boss_dmg": 0.8,     #   damage ×
@@ -159,6 +162,7 @@ static func def_for(p: Dictionary, tier: Dictionary, ti: int) -> Dictionary:
 		d["spd_m"] = (0.7 if tank else 1.0) * (1.25 if beh == "bomber" else 1.0)
 		d["xp_m"] = 1.3 if tank else 1.0
 		d["shot_m"] = 0.7 if beh == "fan" else 0.8
+		d["appear"] = appear_level(int(p["dex"]))
 		d["leave"] = leave_level(int(p["dex"]))
 		return at_level(d, float(tier["lv"][0]))
 	return d
@@ -308,9 +312,13 @@ static func tier_at(t: float) -> int:
 
 const NO_HORDE := ["bomber", "healer", "shielder", "summoner"]
 
+## Level mode: only the forms that can already appear at this wild level.
+static func wild_ok(p: Dictionary, t: float) -> bool:
+	return mode != "level" or float(LV["gate"]) <= 0.0 or appear_level(int(p["dex"])) <= wild_level(t)
+
 ## Types with at least 3 non-support candidates in the current tier (JS order of TYPE_COLOR).
 static func horde_types(t: float) -> Array:
-	var all := candidates(tiers()[tier_at(t)]).filter(func(p): return not NO_HORDE.has(behavior_of(p)))
+	var all := candidates(tiers()[tier_at(t)]).filter(func(p): return not NO_HORDE.has(behavior_of(p)) and wild_ok(p, t))
 	var out: Array = []
 	for ty in Data.type_order:
 		var n := 0
@@ -325,7 +333,7 @@ static func horde_types(t: float) -> Array:
 static func horde_defs(type: String, t: float, rng: StreamRng = null) -> Array:
 	var ti := tier_at(t)
 	var tier: Dictionary = tiers()[ti]
-	var pool := candidates(tier).filter(func(p): return (p["types"] as Array).has(type) and not NO_HORDE.has(behavior_of(p)))
+	var pool := candidates(tier).filter(func(p): return (p["types"] as Array).has(type) and not NO_HORDE.has(behavior_of(p)) and wild_ok(p, t))
 	var picked := rng.pick_n(pool, 4) if rng != null else U.pick_n(pool, 4)
 	return picked.map(func(p): return def_for(p, tier, ti))
 
@@ -342,8 +350,8 @@ func bag_at(t: float) -> Array:
 		last = tier["list"]
 		var w := 3 if t - float(tier["from"]) > 260.0 else 10
 		for e in tier["list"]:
-			# level mode: a form that would have evolved by now no longer appears
-			if e.has("leave") and wl > float(e["leave"]):
+			# level mode: a form it hasn't evolved into yet, or one that would have evolved by now
+			if e.has("appear") and ((float(LV["gate"]) > 0.0 and wl < float(e["appear"])) or wl > float(e["leave"])):
 				continue
 			for i in w:
 				bag.append(e)
@@ -457,7 +465,7 @@ static func boss_at_level(b: Dictionary, l: float) -> Dictionary:
 	return o
 
 ## The level a species appears from in the wild: an evolved form from its evolution level
-## (FamilyRules.req_level: the games' one, or estimated from its base stats); a first form that
+## (Families.req_level: the games' one, or estimated from its base stats); a first form that
 ## evolves from 1; one that doesn't evolve at all, the level of evolved forms with similar base
 ## stats. Leaves after its next form's level + linger (never, for a last form).
 static func appear_level(dex: int) -> float:
@@ -471,8 +479,8 @@ static func leave_level(dex: int) -> float:
 static func _appear_data() -> void:
 	if not _appear.is_empty():
 		return
-	FamilyRules._data()
-	var evo: Dictionary = FamilyRules._evo
+	Families._data()
+	var evo: Dictionary = Families._evo
 	# base stat total -> level, fitted on the level evolutions (like tools/fetch_evolutions.py)
 	var n := 0.0
 	var sx := 0.0
@@ -497,13 +505,13 @@ static func _appear_data() -> void:
 		var from := 1.0
 		if int(h.get("lv", 0)) > 0 or int(h.get("est", 0)) > 0:
 			from = minf(60.0, float(h.get("lv", 0) if int(h.get("lv", 0)) > 0 else h.get("est", 0)))
-		elif FamilyRules.members(FamilyRules.fam_of(d)).size() <= 1:
+		elif Families.members(Families.fam_of(d)).size() <= 1:
 			from = clampf(roundf(b0 + b1 * float(p["bst"])), 1.0, 60.0)
 		var nxt := 999.0
-		for c in FamilyRules.members(FamilyRules.fam_of(d)):
+		for c in Families.members(Families.fam_of(d)):
 			var ce: Dictionary = evo.get(str(c), {})
 			if int(ce.get("from", 0)) == d:
-				nxt = minf(nxt, float(FamilyRules.req_level(c)))
+				nxt = minf(nxt, float(Families.req_level(c)))
 		_appear[d] = [from, nxt]
 
 ## The cast groups of the level mode: one per band, from when the wild level reaches it.

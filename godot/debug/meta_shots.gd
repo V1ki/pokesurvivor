@@ -69,23 +69,13 @@ func _seq() -> void:
 	await _shot("collection_missing")
 	dex.filter = "all"
 	meta.open("upgrades")
-	# the most upgraded Pokémon (shows pips, maxed cards and the Veto picker when it has bans)
+	# the partner's family (level, forms, moves) and the trainer upgrades
 	var up: UpgradesScreen = meta.screens["upgrades"]
-	var best := Save.partner()
-	for d in Save.owned_list():
-		if UpgradesScreen.levels_total(d) > UpgradesScreen.levels_total(best):
-			best = d
-	up.dex = best
-	if Save.read_only:                     # debug save: show the Veto picker with banned chips
-		Save.upgrades_of(best)["ban"] = 2
-		var pool := Moves.pool_for(Data.dex_by[best]).filter(func(id): return id != Moves.start_move_of(best))
-		Save.data["pban"] = {str(best): pool.slice(0, 2)}
+	up.fam = Families.fam_of(Save.partner())
 	up.open()
-	if int(Save.upgrades_of(best).get("ban", 0)) > 0:
-		up.ban_open = true
-		up._render()
 	await _wait(1.0)
-	up._scroll.scroll_vertical = 100000          # down to the Veto picker and the hotkeys
+	await _shot("upgrades_family")
+	up._scroll.scroll_vertical = 100000          # down to the trainer upgrades and the hotkeys
 	await _wait(0.2)
 	await _shot("upgrades")
 	meta.open("gacha")

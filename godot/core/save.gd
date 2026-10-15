@@ -7,7 +7,7 @@ extends RefCounted
 ## A static class so it also works in `--script` tests. Nothing is read or written until
 ## load_or_create() is called (headless tests never touch the player's save).
 
-const VERSION := 3
+const VERSION := 4              # 4 (2026-10-14): trainer + families (core/families.gd)
 const START_COINS := 500
 const PATH := "user://save.json"
 
@@ -16,6 +16,7 @@ static var loaded := false
 static var path := PATH            # tests redirect this
 static var read_only := false      # debug runs (autoshot / autoplay / metashot): never written
 static var storage_ok := true
+static var now_override := -1      # tests: a fixed "now" (ms), like the JS vectors' Date.now
 
 ## The previous save before an import (next to the save file).
 static func backup_path() -> String:
@@ -26,6 +27,8 @@ static func export_path() -> String:
 	return path.get_base_dir().path_join("save_export.json")
 
 static func now_ms() -> int:
+	if now_override >= 0:
+		return now_override
 	return int(Time.get_unix_time_from_system() * 1000.0)
 
 # ---------------- save object ----------------
@@ -44,8 +47,11 @@ static func new_save(name: String) -> Dictionary:
 		"partnerShiny": false,
 		"starter": null,
 		"personality": null,         # {trait, scores}
-		"upgrades": {},              # legacy account-wide upgrades (migration only)
-		"pupg": {},                  # dex -> {upgradeId: level}
+		"upgrades": {},              # (old) account-wide upgrades, then per Pokémon (migration only)
+		"pupg": {},                  # (old) dex -> {upgradeId: level}
+		"trainer": {},               # id -> level: trainer upgrades, for every Pokémon (core/families.gd)
+		"fams": {},                  # family -> {lv, xp, shards, stars}
+		"uni": 0,                    # universal shards
 		"tickets": {"t1": 0, "t10": 0},
 		"pity": {},                  # banner gen -> pulls since the last 5*
 		"legends": {},
@@ -56,23 +62,30 @@ static func new_save(name: String) -> Dictionary:
 		"missions": {},
 		"profile": {"favs": [], "title": ""},
 		"stats": {"runs": 0, "bestTime": 0, "bestLevel": 0, "totalKills": 0, "pulls": 0, "coinsEarned": 0, "shinies": 0,
-			"bossesTotal": 0, "riftWins": 0, "evolutions": 0, "missionsDone": 0, "groupRuns": 0, "bestGroupTime": 0},
+			"bossesTotal": 0, "riftWins": 0, "evolutions": 0, "missionsDone": 0, "groupRuns": 0, "bestGroupTime": 0,
+			# when it moved to families: what was owned before can always be used
+			"famAt": 1},
 	}
 
-## Fills fields missing in older saves, runs the v1->v2->v3 migrations and sanitize (db.js migrate).
+## Fills fields missing in older saves, runs the v1->v2->v3->v4 migrations and sanitize (db.js migrate).
 static func migrate(s: Dictionary, name := "") -> Dictionary:
 	Data.ensure()
 	var base := new_save(name if name != "" else str(s.get("name", "")))
+	# v3 -> v4 (2026-10-14): from per-Pokémon upgrades to trainer + families
+	var fam_first := not (s.get("stats") is Dictionary and Save._truthy(s["stats"].get("famAt")))
 	for k in base:
 		if s.get(k) == null:
 			s[k] = base[k]
 	# a hand-edited save can have the wrong container types: JS would misbehave, here they reset
-	for k in ["owned", "shiny", "upgrades", "pupg", "legends", "arenas", "itemsFound", "evoMoves", "ach", "missions", "profile", "stats"]:
+	for k in ["owned", "shiny", "upgrades", "pupg", "trainer", "fams", "legends", "arenas", "itemsFound", "evoMoves", "ach", "missions", "profile", "stats"]:
 		if not (s[k] is Dictionary):
 			s[k] = base[k]
 	for k in base["stats"]:
 		if s["stats"].get(k) == null:
 			s["stats"][k] = base["stats"][k]
+	if fam_first:
+		s["stats"]["famAt"] = now_ms()
+	Families.migrate(s, fam_first)
 	# v1 -> v2: a single banner (Kanto) with the pity as a number
 	if s["pity"] is float or s["pity"] is int:
 		s["pity"] = {"1": s["pity"]}
@@ -149,6 +162,30 @@ static func sanitize(s: Dictionary) -> void:
 				u.erase(id)
 			else:
 				u[id] = mini(int(def["max"]), _n(u[id]))
+	# trainer and families: levels within their caps and positive numbers
+	if not (s.get("trainer") is Dictionary):
+		s["trainer"] = {}
+	var tr: Dictionary = s["trainer"]
+	for id in tr.keys():
+		var tdef := Upgrades.by_id(str(id))
+		if tdef.is_empty():
+			tr.erase(id)
+		else:
+			tr[id] = mini(int(tdef["max"]), _n(tr[id]))
+	if not (s.get("fams") is Dictionary):
+		s["fams"] = {}
+	var fs: Dictionary = s["fams"]
+	for f in fs.keys():
+		var v: Variant = fs[f]
+		if not (v is Dictionary):
+			fs.erase(f)
+			continue
+		v["lv"] = maxi(1, mini(int(Families.R["cap"]), _n(v.get("lv")) if _n(v.get("lv")) > 0 else 1))
+		var xf := Families._num(v.get("xp"))
+		v["xp"] = ints(maxf(0.0, xf if is_finite(xf) else 0.0))
+		v["shards"] = _n(v.get("shards"))
+		v["stars"] = mini(int(Families.R["stars"]), _n(v.get("stars")))
+	s["uni"] = _n(s.get("uni"))
 
 ## JS n(): finite positive numbers floored, everything else 0 (+true is 1, "12" is 12).
 static func _n(v: Variant) -> int:

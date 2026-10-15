@@ -1,8 +1,9 @@
 extends SceneTree
 ## Headless smoke test of the Phase 4 screens' actions (no rendering checks; script errors fail):
 ##   godot --headless --path godot --script res://tests/meta_ui_smoke.gd
-## In-memory save (never written): personality test -> choose, buy upgrades, ban/hotkeys, partner
-## change, gacha pull, mission claim/reroll, favourites/title, settings toggles, import, delete.
+## In-memory save (never written): personality test -> choose, buy trainer upgrades, hotkeys, the
+## family (unlock a form with shards, pick it), partner change, gacha pull, mission claim/reroll,
+## favourites/title, settings toggles, import, delete.
 
 var fails := 0
 
@@ -30,28 +31,27 @@ func _initialize() -> void:
 	Save.data["coins"] = 100000
 	ui.open("upgrades")
 	var up: UpgradesScreen = ui.screens["upgrades"]
-	for i in 3:
-		up._buy("ban")
 	up._buy("hp")
-	up._buy("moves")
-	ok("upgrades bought (ban 3, hp 1, moves 1)", int(Save.upgrades_of(7)["ban"]) == 3 and int(Save.upgrades_of(7)["hp"]) == 1 \
-		and int(Save.data["coins"]) == 100000 - 300 - 570 - 1080 - 60 - 1500)
-	up.ban_open = true
-	up._render()
-	await process_frame
-	var bl := up._ban_list()
-	bl.append_array(["tackle", "bubble"])
+	up._buy("hp")
+	up._buy("regen")
+	up._buy("atk")              # not a trainer upgrade any more: nothing happens
+	ok("trainer upgrades bought (hp 2, regen 1)", int(Save.data["trainer"]["hp"]) == 2 and int(Save.data["trainer"]["regen"]) == 1 \
+		and not Save.data["trainer"].has("atk") \
+		and int(Save.data["coins"]) == 100000 - Upgrades.cost("hp", 0) - Upgrades.cost("hp", 1) - Upgrades.cost("regen", 0))
 	Save.data["pbind"]["7"] = ["water-gun", null, "tackle", null]
 	up._render()
 	await process_frame
 	var setup := Meta.run_setup(4)
-	ok("run setup: dex 7, perks hp 8, startMoves 2, bind + ban", int(setup["dex"]) == 7 and float(setup["opts"]["perks"]["hp"]) == 8.0 \
-		and int(setup["opts"]["perks"]["startMoves"]) == 2 and setup["opts"]["bind"][2] == "tackle" and setup["opts"]["ban"].size() == 2)
+	var sm: Array = setup["opts"]["start_moves"]
+	ok("run setup: dex 7, trainer hp 16, its family's moves, hotkeys", int(setup["dex"]) == 7 and float(setup["opts"]["perks"]["hp"]) == 16.0 \
+		and sm.size() == 1 and Moves.def(sm[0])["type"] == "water" and (setup["opts"]["pool"] as Array).has(sm[0]) \
+		and setup["opts"]["bind"][2] == "tackle" and not setup["opts"].has("ban"))
 	var sim := Sim.new()
 	sim.render = false
 	sim.start_run(int(setup["dex"]), 5, setup["opts"])
-	ok("run starts with 2 moves, bans and hotkeys applied", sim.player.moves.size() == 2 and sim.player.banned.has("tackle") \
-		and sim.player.max_hp == float(Data.dex_by[7]["hp"]) + 8.0)
+	ok("run starts with the family's move, the cards' pool and the trainer's HP", sim.player.moves.size() == 1 \
+		and sim.player.moves[0]["id"] == sm[0] and sim.player.move_pool == setup["opts"]["pool"] \
+		and sim.player.max_hp == float(Data.dex_by[7]["hp"]) + 16.0)
 	sim.time = 125.0
 	sim.player.kills = 40
 	sim.player.t1 = 2
@@ -62,8 +62,25 @@ func _initialize() -> void:
 	Meta.apply_run(sim.result, sim.player)
 	ok("end of run: runs 1, kills 40, coins +35, tickets banked once", Save.stat("runs") == 1 and Save.stat("totalKills") == 40 \
 		and int(sim.result["coins"]) == 35 and int(Save.data["tickets"]["t1"]) == t1)
+	var fx: Dictionary = sim.result.get("fam", {})
+	ok("end of run: family XP 0.5/s + 1/kill (62.5 + 40 -> 103; level 2 needs 120)", int(fx.get("gained", 0)) == 103 \
+		and int(fx.get("lv", 0)) == 1 and int(fx.get("need", 0)) == 120 and int(Families.fam(Save.data, Families.fam_of(7))["xp"]) == 103)
 	ui.show_results(sim.result)
 	await process_frame
+	# the family: Wartortle needs level 16 and 20 shards (rarity 2), then it can be picked
+	ui.open("upgrades")
+	var f7 := Families.fam_of(7)
+	Families.fam(Save.data, f7)["shards"] = 25
+	up._unlock(8)
+	ok("family level 1: Wartortle can't be unlocked yet", not Save.owns(8))
+	Families.fam(Save.data, f7)["lv"] = 16
+	up._unlock(8)
+	ok("family level 16: Wartortle unlocked with 20 shards", Save.owns(8) and int(Families.fam(Save.data, f7)["shards"]) == 5)
+	up._pick(8)
+	ok("Wartortle picked as partner", Save.partner() == 8)
+	up._render()
+	await process_frame
+	Save.data["partner"] = 7
 	ui.open("dex")
 	var dx: DexScreen = ui.screens["dex"]
 	Save.grant(150, "gacha")

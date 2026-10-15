@@ -1,8 +1,9 @@
 class_name ResultsScreen
 extends Control
 ## Run results (js/ui/run-ui.js showOver, #scr-over): "Has caído…" / "Run terminada", time, level,
-## kills, bosses, coins earned + breakdown, tickets, moves with levels, shinies caught, new time
-## record, "Volver al menú". The save was already updated (Meta.apply_run).
+## kills, bosses, coins earned + breakdown, the partner's family (level, XP, moves learned,
+## evolutions now possible), tickets, moves with levels, shinies caught, new time record,
+## "Volver al menú". The save was already updated (Meta.apply_run).
 
 var ui: MetaUI
 var result: Dictionary = {}
@@ -20,6 +21,42 @@ func _ready() -> void:
 	cc.add_child(_panel)
 	_box = UIKit.vbox(8)
 	_panel.add_child(_box)
+
+## The partner's family (run-ui.js famRow): level (+levels gained), XP bar, XP gained, the moves it
+## learned and the forms it can evolve into now.
+func _fam_row(r: Dictionary) -> VBoxContainer:
+	var f: Dictionary = r["fam"]
+	var dex := int(r.get("dex", 0))
+	var lv := int(f["lv"])
+	var from := lv - int(f["ups"])
+	var head := UIKit.hbox(8, [UIKit.label("Familia de %s" % Families.fam_name(int(f["f"])), 13, UIKit.MUTED),
+		UIKit.label("Nv. %d" % lv, 20, UIKit.INK)])
+	if int(f["ups"]) > 0:
+		head.add_child(UIKit.label("(+%d)" % int(f["ups"]), 18, UIKit.GOLD))
+	head.alignment = BoxContainer.ALIGNMENT_CENTER
+	var v := UIKit.vbox(3, [head])
+	if lv < int(Families.R["cap"]):
+		v.add_child(UIKit.bar(minf(1.0, float(f["xp"]) / maxf(1.0, float(f["need"]))), UIKit.GOLD, 0.0, 8.0))
+	v.add_child(UIKit.label("+%d de experiencia" % int(f["gained"]), 12, UIKit.MUTED, HORIZONTAL_ALIGNMENT_CENTER))
+	if int(f["ups"]) > 0 and dex > 0:
+		var learned := Families.moves_of(dex).filter(func(e): return int(e[1]) > from and int(e[1]) <= lv)
+		if not learned.is_empty():
+			var row := HFlowContainer.new()
+			row.alignment = FlowContainer.ALIGNMENT_CENTER
+			row.add_theme_constant_override("h_separation", 6)
+			row.add_child(UIKit.label("Aprende:", 13, UIKit.MUTED))
+			for e in learned:
+				row.add_child(UIKit.hbox(3, [UIKit.icon("move:" + str(e[0]), 14), UIKit.label(str(Moves.def(e[0]).get("name", e[0])), 13)]))
+			v.add_child(row)
+	for d in Families.members(int(f["f"])):
+		if d == dex or not Data.dex_by.has(d) or Families.req_level(d) <= from or Families.req_level(d) > lv:
+			continue
+		var nm := str(Data.dex_by[d]["name"])
+		if Save.owns(d):
+			v.add_child(UIKit.label("¡Ya puede evolucionar a %s!" % nm, 14, UIKit.GOLD, HORIZONTAL_ALIGNMENT_CENTER, true))
+		else:
+			v.add_child(UIKit.label("Ya tiene nivel para %s: consíguelo en el gacha o con fragmentos." % nm, 13, UIKit.INK, HORIZONTAL_ALIGNMENT_CENTER, true))
+	return v
 
 ## .stats > div: a muted UPPER-CASE 12 px caption over the value.
 func _cell(lbl: String, val: Control) -> VBoxContainer:
@@ -70,6 +107,8 @@ func open() -> void:
 	bd.custom_minimum_size = Vector2(300 if cpt else 440, 0)
 	cv.add_child(bd)
 	col_a.add_child(UIKit.panel("Inset", cv))
+	if r.get("fam") is Dictionary:
+		col_a.add_child(UIKit.panel("Inset", _fam_row(r)))
 	if int(r.get("t1", 0)) or int(r.get("t10", 0)):
 		var th := UIKit.hbox(6)
 		if int(r.get("t1", 0)):

@@ -11,6 +11,7 @@ var fails := 0
 func _initialize() -> void:
 	seed(20261013)                 # reproducible randomness (Math.random equivalent)
 	Data.ensure()
+	EnemyDefs.set_mode("tier")      # the JS vectors are computed with the tier model (tools/export_godot.js)
 	print("== PokeSurvivor Godot port - unit tests ==")
 	test_hash()
 	test_mulberry()
@@ -31,6 +32,8 @@ func _initialize() -> void:
 	I18nTests.new().run(self)            # languages vs js/core/i18n.js (tests/i18n_tests.gd)
 	AudioTests.run(self)                 # pre-rendered audio + sfx() limiter (tests/audio_tests.gd)
 	ParityTests.run(self)                # rules fixed by the parity audit (tests/parity_tests.gd, docs/PARITY.md)
+	LevelTests.run(self)                 # wild Pokémon levels vs js/data/enemies.js (tests/level_tests.gd)
+	FamiliesTests.run(self)              # trainer, families, evolution, shards (tests/families_tests.gd)
 	print("== %d passed, %d failed ==" % [passes, fails])
 	quit(1 if fails > 0 else 0)
 

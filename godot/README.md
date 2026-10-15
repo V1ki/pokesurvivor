@@ -196,8 +196,9 @@ Missions and achievements (and their tickets) are not simulated. In the batch mo
 upgrades), to measure the move system alone. Knowing fewer than 4 attacks, its type's basic moves fill
 the list (`min_attacks`), and the run starts with one of its own type (`stab_start`).
 
-`--enemies=level` (being tested, batch and campaign) swaps the game's enemy model (BST tiers by run
-time × the time curves) for **wild levels** (`sim/enemy_defs.gd`, "wild levels"): the wild level starts
+**Wild levels** are the game's enemy model since 2026-10-15 (`sim/enemy_defs.gd` "wild levels" =
+`js/data/enemies.js` MODE 'level'); `--enemies=tier` plays the previous one (BST tiers by run time ×
+the time curves), batch and campaign. The wild level starts
 at `lv0` and climbs with the run time (`lv_min` per minute, plus `lv_acc` per minute² counted from
 minute `acc_from`); each one spawns at that level ± `spread`. Its HP is the games' HP stat for its base HP and level (× `hp_k`, and ×
 (1 + `grow`) per level if set), its contact damage the games' level factor (`dmg_lv`·Lv + 2, 2/5 in
@@ -206,13 +207,17 @@ appears from the level it evolves at (Charmeleon from 16) and one that would hav
 `linger` levels later; Pokémon that don't evolve appear from the level of evolved forms with similar
 base stats. Bosses are `boss_lv` levels above (× `boss_hp` HP). `EnemyDefs.LV_DEFAULTS` holds every
 number, `--enemy-set=k=v,...` changes them (e.g. `--enemy-set=lv0=5,lv_min=4,grow=0.02`); the report
-prints the wild level at a few times. Campaign accounts of this mode are saved apart (`..._lv.json`).
-The defaults are the variant the playtests picked (2026-10-15, Scorbunny with its learnset, 30 runs per
-profile, at most 20 min): Lv 3 at 0:00, +4 a minute, faster and faster from minute 6 (51 at 10:00, 104
-at 15:00), +3 % HP a level, damage factor 0.2·Lv + 2, XP about the tiers'. Median survival, tiers →
-levels: new account novice 1:47 → 2:59, casual 3:46 → 4:59, expert 3:52 → 5:55 (and deaths far less
-bunched); everything maxed 5:38 → 5:49, 7:28 → 9:12, 13:04 → 13:09 (a third of the experts still alive
-at 20:00 in both).
+prints the wild level at a few times. Campaign accounts of the tier model are saved apart
+(`..._tier.json`), and so are those with changed level numbers (`..._lv.json`).
+The defaults are the variant the playtests picked (2026-10-15, 13 variants, Scorbunny with its
+learnset, at most 20 min a run): Lv 3 at 0:00, +4 a minute, faster and faster from minute 6 (51 at
+10:00, 104 at 15:00), +3 % HP a level, damage factor 0.2·Lv + 2, XP about the tiers', each form only
+from its own evolution level (`gate`). Median survival, tiers → levels: new account (90 runs per
+profile, expert 30) novice 1:50 → 2:10, casual 3:01 → 3:58 (lasting 5 min: 6 % → 37 %), expert 3:52 →
+6:31; everything maxed (30 runs) 5:38 → 6:15, 7:28 → 9:28, 13:04 → 12:19 (about a third of the
+experts alive at 20:00 in both). The pure games' formula was far too easy late (HP only grows
+linearly), the games' damage factor 2·Lv/5 + 2 too harsh for novices, and more XP made players
+snowball; the starting level matters little (Lv 1 / 3 / 6), how fast it climbs a lot.
 `--campaign=0` with the same `--save-dir` only prints that report (accounts are saved after every run,
 so this works while a campaign is still playing them).
 
@@ -251,9 +256,17 @@ achievement values on the real save and a rich synthetic one, `checkAch` grants 
 personality result for 7 answer sets; import (localStorage string form) / export / garbage
 rejection through `Save.import_json`. Tests redirect the save to `user://tests/` and delete it.
 `tests/meta_ui_smoke.gd` drives the screens headless on an in-memory save (test → starter,
-upgrades + Veto + hotkeys → `Meta.run_setup` → a run with those perks → `Meta.apply_run`, partner
-change, gacha pull, mission claim/reroll, profile, settings, import, delete) and fails on any
-script error or wrong state.
+trainer upgrades + hotkeys → `Meta.run_setup` → a run with the family's moves and those perks →
+`Meta.apply_run` with the family XP, a form unlocked with shards and picked, partner change, gacha
+pull, mission claim/reroll, profile, settings, import, delete) and fails on any script error or
+wrong state. `tests/families_tests.gd` checks `core/families.gd` against `js/systems/families.js`
+(`test_vectors_p4.json` "families": every species' learnset moves, the known moves with the basic
+fill, start moves and card pool at family levels 1 / 20 / 45, perks, level bonus, XP, 900 seeded
+pulls turned into shards, unlock / stars / owned-before-famAt) and that the simulator's
+`FamilyRules` gives the same moves; `tests/level_tests.gd` checks the wild levels against
+`js/data/enemies.js` (`test_vectors_levels.json`: the numbers, appear / leave level of every
+species, cast groups, the level curve, every species' stats at Lv 1 / 17 / 60, rolled bosses, horde
+types) plus a live level-mode run.
 Phase 3a checks (`tests/phase3_tests.gd`, 59 checks; also `res://tests/run_p3_tests.gd` alone, ~10 s)
 against `data/test_vectors_p3.json` (written by `exportPhase3()` in `tools/export_godot.js`, which
 runs the unchanged `tiles.js` painters on real pixel buffers, `world.js` and `weather.js`; set
@@ -293,13 +306,15 @@ core/                u.gd (U: imul32/hash01/damp/JS rounding), data.gd (Data: st
                      audio_logic.gd (sfx() rules), save.gd (Save: db.js format, user://save.json,
                      import/export), progress.gd (Progress: missions, achievements, run events,
                      Madrid period ids, seeded RNG), gacha.gd (Gacha), upgrades.gd (Upgrades),
-                     meta.gd (Meta: run setup from upgrades, ticket banking, coins, endRun stats,
+                     families.gd (Families: trainer, family levels, evolution, shards, learnset
+                     moves = js/systems/families.js), meta.gd (Meta: run setup from the trainer
+                     and the family, ticket banking, coins, endRun stats and family XP,
                      personality result)
 sim/                 renderer-agnostic simulation (RefCounted, no nodes, no physics):
                      sim.gd (Sim: state machine, update order §1.4, onCollect, endRun),
                      player, enemy (behaviors + boss AI), enemy_mgr (windowed grid 52 wu,
-                     separation, laggards), enemy_defs (tiers, behaviorOf, defFor, rollRun, boss
-                     defs, scaling), spawner (bosses, shinies), combat (15 kinds + fields),
+                     separation, laggards), enemy_defs (wild levels / tiers, behaviorOf, defFor,
+                     rollRun, boss defs, scaling), spawner (bosses, shinies), combat (15 kinds + fields),
                      projectiles, hazards (telegraphs), pathing (flow field + LOS), items,
                      pickups, levelup, moves, types, world_map (terrain, props, arena, collision,
                      loot, biome + crossfade state, async chunk jobs), world_prop (WorldProp),
@@ -479,17 +494,19 @@ a base APK, 200 MB AAB base module), so the `.pck`-per-generation split is not n
   previous save kept as `save.backup.json`), export to clipboard + `save_export.json`, delete.
 - **Flow** (`main.gd` + `ui/meta_ui.gd`): no partner → personality test (8 questions → trait →
   suggested starter, "Elegir otro" → 29 starters) → menu → Play (saved partner, shiny skin,
-  per-Pokémon perks, hotkeys `pbind`, bans `pban`, Repertoire 2nd move via
-  `Sim.start_run(dex, seed, opts)`) → run → results (coins formula, stats, `runEnd`, achievements)
-  → menu. Esc / gamepad B goes back from sub-screens. `--autoplay` starts runs from the menu.
+  trainer + family perks and the family's moves from `core/families.gd`, hotkeys `pbind`, via
+  `Sim.start_run(dex, seed, opts)`) → run → results (coins formula, stats, family XP, moves learned,
+  evolutions now possible, `runEnd`, achievements) → menu. Esc / gamepad B goes back from sub-screens. `--autoplay` starts runs from the menu.
 - **Menu** with the live backdrop (§1.7: world seed 4242, 20 wanderers, drifting camera, biome
   every 30 s; ground drawn by `WorldView` in state `ui`), partner card (lively, type border or
   shiny), Normal/Shiny toggle, list Play / Pokémon / Mejoras / Gacha / Misiones / Ajustes (no
   Friends/Ranking), stats box, top bar (coins, tickets, settings), pending-rewards badge.
 - **Collection**: 9 generation tabs (have/total), filters all/owned/missing/shiny/rarity, grid
-  (silhouettes, crown, shiny star), detail (stats bars, start move, learnable moves, Normal/Shiny
-  view, choose partner). **Upgrades**: Pokémon selector, 13 cards with pips and prices, Veto picker,
-  4 hotkey selects. **Gacha**: 9 banners, rates panel, x1 / x10 / x10-ticket, pity line, slot machine
+  (silhouettes, crown, shiny star), detail (stats bars, family level, start moves, moves by family
+  level (dim until learned), Normal/Shiny view, choose partner once its family reaches its level).
+  **Upgrades** (trainer + families, 2026-10-14): family selector, family panel (level, XP, bonus,
+  shards, its forms to pick or unlock with shards, stars, the moves by level with the basic fill),
+  8 trainer cards with pips and prices, 4 hotkey selects. Gacha duplicates give shards (no coins). **Gacha**: 9 banners, rates panel, x1 / x10 / x10-ticket, pity line, slot machine
   (port of `slots.js`: lever, reels, suspense on 4★+/shiny, LED, bulbs, tray, sparks, click =
   faster) and reveal cards 150 ms apart (NEW / SHINY NEW / duplicate +coins, glow on 5★/shiny).
 - **Missions / achievements / profile** (`core/progress.gd`): daily 3 + weekly 2 from the Madrid
