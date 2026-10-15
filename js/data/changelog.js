@@ -6,6 +6,19 @@
  * Cada línea en español y en inglés.
  */
 G.CHANGELOG = [
+  { d: '2026-10-15', title: ['Pokémon salvajes con nivel', 'Wild Pokémon have levels'], new: [
+    ['Los Pokémon salvajes tienen nivel: empiezan en el 3, suben 4 por minuto y, desde el minuto 6, cada vez más deprisa. Lo ves debajo del reloj, y el de cada jefe junto a su nombre.',
+     'Wild Pokémon have levels: they start at 3, go up 4 a minute and, from minute 6, faster and faster. You can see it under the clock, and each boss\'s next to its name.'],
+    ['Su vida, su daño y su velocidad salen de sus stats base y de su nivel, con las fórmulas de los juegos: al mismo nivel, un Snorlax aguanta mucho más que un Caterpie.',
+     'Their HP, damage and speed come from their base stats and their level, with the formulas from the games: at the same level, a Snorlax takes far more hits than a Caterpie.'],
+    ['Cada forma sale desde su nivel de evolución, como en los juegos: Charmeleon a partir del nivel 16 y Charizard del 36; las que ya habrían evolucionado dejan de salir.',
+     'Each form shows up from its evolution level, like in the games: Charmeleon from level 16 and Charizard from 36; the ones that would have evolved by then stop showing up.']
+  ], chg: [
+    ['La dificultad sube de forma pareja, sin saltos de golpe, y se suele llegar más lejos que antes. Con las mejoras al máximo, las partidas duran más o menos lo mismo.',
+     'The difficulty rises steadily, with no sudden jumps, and you usually get further than before. With everything upgraded, runs last about as long as before.'],
+    ['Los jefes llegan 8 niveles por encima de los salvajes.',
+     'Bosses arrive 8 levels above the wild Pokémon.']
+  ] },
   { d: '2026-10-14', title: ['Familias, evolución y entrenador', 'Families, evolution and trainer'], new: [
     ['Mejoras del entrenador: vida, defensa, regeneración, velocidad, imán, sabiduría, fortuna y cambio de cartas se compran una vez y valen para todos tus Pokémon.',
      'Trainer upgrades: HP, defense, regeneration, speed, magnet, wisdom, fortune and card rerolls are bought once and work for all your Pokémon.'],

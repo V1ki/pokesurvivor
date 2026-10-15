@@ -29,6 +29,13 @@
  * Jefes: Pokémon fuertes NO legendarios (pseudolegendarios, Slaking...), al
  * azar por franjas de poder. Los legendarios sólo salen en las grietas
  * (systems/rift.js).
+ *
+ * NIVELES (desde 2026-10-15, MODE 'level'): los salvajes tienen nivel. Empieza en 3, sube 4 por
+ * minuto y desde el minuto 6 cada vez más deprisa (51 al minuto 10, 104 al 15). La vida, el daño
+ * y la velocidad de cada uno salen de SUS stats base y de su nivel con las fórmulas de los juegos;
+ * cada forma sale desde su nivel de evolución (Charmeleon desde el 16) y deja de salir cuando ya
+ * habría evolucionado. Con MODE 'tier' vuelve el sistema anterior (plantilla del tramo × curvas de
+ * tiempo). Números elegidos con el simulador de Godot (godot/sim/enemy_defs.gd, el mismo cálculo).
  */
 G.Enemies = (() => {
   const TIERS = [
@@ -52,6 +59,8 @@ G.Enemies = (() => {
   // Stats base aproximados a partir de los de juego (inverso de fetch_pokedex).
   const baseHp = p => (p.hp - 70) / 0.45;
   const baseSpd = p => (p.spd - 78) / 0.42;
+  const baseAtk = p => (p.atk - 0.70) / 0.55 * 100;     // el mayor de Ataque y Ataque Especial
+  const round2 = x => Math.floor(x * 100 + 0.5) / 100;
 
   const H = (d, s) => G.U.hash(d, 7, s);
 
@@ -108,11 +117,24 @@ G.Enemies = (() => {
     if (behavior === 'fan') d.fanN = ti < 2 ? 3 : 5;             // abanico más ancho más adelante
     if (behavior === 'zoner') d.zones = ti < 2 ? 1 : ti < 4 ? 2 : 3;   // más zonas más adelante
     if (behavior === 'bomber') { d.spd = Math.round(d.spd * 1.25); d.hp = Math.round(d.hp * 0.8); }
+    if (tier.lv) {
+      // niveles: de qué salen sus stats; G.Spawner los calcula con el nivel con el que sale
+      const tank = behavior === 'tank', bomb = behavior === 'bomber';
+      Object.assign(d, {
+        bhp: baseHp(p), batk: baseAtk(p), spd_k: spdK,
+        hp_m: (tank ? 1.5 : 1) * (bomb ? 0.8 : 1), dmg_m: tank ? 1.2 : 1,
+        spd_m: (tank ? 0.7 : 1) * (bomb ? 1.25 : 1), xp_m: tank ? 1.3 : 1,
+        shot_m: behavior === 'fan' ? 0.7 : 0.8, appear: appearLevel(p.dex), leave: leaveLevel(p.dex)
+      });
+      return atLevel(d, tier.lv[0]);
+    }
     return d;
   }
 
-  /** Todos los candidatos de un tramo (sin legendarios ni míticos). */
+  /** Todos los candidatos de un tramo (sin legendarios ni míticos): por stats base o, con niveles,
+   *  por el nivel desde el que salen. */
   function candidates(tier) {
+    if (tier.lv) return G.DEX.filter(p => { const a = appearLevel(p.dex); return p.rarity < 5 && a >= tier.lv[0] && a < tier.lv[1] && G.SPRITE_META[p.dex]; });
     return G.DEX.filter(p => p.rarity < 5 && p.bst >= tier.bst[0] && p.bst <= tier.bst[1] && G.SPRITE_META[p.dex]);
   }
 
@@ -143,14 +165,17 @@ G.Enemies = (() => {
 
   /** Sortea el elenco de una run nueva. */
   function rollRun() {
-    cast = TIERS.map((tier, ti) => ({
+    cast = tiers().map((tier, ti) => ({
       from: tier.from,
       list: castFor(tier).map(p => defFor(p, tier, ti))
     }));
     for (const tier of cast) {
       const plain = tier.list.filter(d => d.behavior === 'chase' || d.behavior === 'charger' || d.behavior === 'tank');
       const r = plain.sort((a, b) => b.spd - a.spd)[0];
-      if (r) { r.behavior = 'runner'; r.spd = Math.round(r.spd * 1.6); r.hp = Math.round(r.hp * 0.7); }
+      if (r) {
+        r.behavior = 'runner'; r.spd = Math.round(r.spd * 1.6); r.hp = Math.round(r.hp * 0.7);
+        if (r.hp_m != null) { r.spd_m *= 1.6; r.hp_m *= 0.7; }
+      }
     }
     const used = new Set();
     bosses = BOSS_SLOTS.map(slot => {
@@ -159,6 +184,13 @@ G.Enemies = (() => {
       if (!pool.length) pool = G.DEX.filter(p => ok(p) && p.bst >= 580);
       const p = G.U.pick(pool);
       used.add(p.dex);
+      if (MODE === 'level') {
+        const b = { at: slot.at, dex: p.dex, name: p.name, bhp: baseHp(p), batk: baseAtk(p), xp: slot.xp,
+          spd: Math.round(G.U.clamp(40 + baseSpd(p) * 0.5, 40, 100)),
+          behavior: behaviorOf(p) === 'ranged' ? 'ranged' : (baseSpd(p) > 90 ? 'charger' : 'chase'),
+          shotCd: 1.1, range: 260 };
+        return bossAtLevel(b, wildLevel(slot.at) + LV.boss_lv);
+      }
       return {
         at: slot.at, dex: p.dex, name: p.name,
         // (Desde 2026-10-10 más duros: ×1,35 de vida y ×1,2 de daño.)
@@ -194,19 +226,21 @@ G.Enemies = (() => {
   function bossScale(t) { const k = late(t); return { hp: (1 + t / 600) * k, dmg: (1 + t / 600) * Math.pow(k, 0.7), spd: 1 }; }
 
   /** Tramo que toca en el segundo `t`. */
-  function tierAt(t) { let ti = 0; TIERS.forEach((tr, i) => { if (t >= tr.from) ti = i; }); return ti; }
+  function tierAt(t) { let ti = 0; tiers().forEach((tr, i) => { if (t >= tr.from) ti = i; }); return ti; }
 
   const NO_HORDE = new Set(['bomber', 'healer', 'shielder', 'summoner']);
+  /** Con niveles, sólo las formas que ya pueden salir a este nivel salvaje. */
+  const wildOk = (p, t) => MODE !== 'level' || LV.gate <= 0 || appearLevel(p.dex) <= wildLevel(t);
   /** Tipos con bastantes Pokémon en el tramo actual para una horda (events.js). */
   function hordeTypes(t) {
-    const all = candidates(TIERS[tierAt(t)]).filter(p => !NO_HORDE.has(behaviorOf(p)));
+    const all = candidates(tiers()[tierAt(t)]).filter(p => !NO_HORDE.has(behaviorOf(p)) && wildOk(p, t));
     return Object.keys(G.U.TYPE_COLOR).filter(ty => all.filter(p => p.types.includes(ty)).length >= 3);
   }
   /** Hasta 4 Pokémon de un tipo, con los stats del tramo actual. */
   function hordeDefs(type, t) {
     const ti = tierAt(t);
-    const pool = candidates(TIERS[ti]).filter(p => p.types.includes(type) && !NO_HORDE.has(behaviorOf(p)));
-    return G.U.pickN(pool, 4).map(p => defFor(p, TIERS[ti], ti));
+    const pool = candidates(tiers()[ti]).filter(p => p.types.includes(type) && !NO_HORDE.has(behaviorOf(p)) && wildOk(p, t));
+    return G.U.pickN(pool, 4).map(p => defFor(p, tiers()[ti], ti));
   }
 
   /** Bolsa de enemigos disponibles en el segundo `t`. */
@@ -215,13 +249,19 @@ G.Enemies = (() => {
     const horde = G.Events && G.Events.bag();
     if (horde) return horde;
     if (!cast) rollRun();
-    const bag = [];
+    const bag = [], wl = wildLevel(t);
+    let last = cast[0].list;
     for (const tier of cast) {
       if (t < tier.from) continue;
+      last = tier.list;
       const w = t - tier.from > 260 ? 3 : 10;       // los tramos viejos pierden peso
-      for (const e of tier.list) for (let i = 0; i < w; i++) bag.push(e);
+      for (const e of tier.list) {
+        // con niveles: aún no ha evolucionado hasta esta forma, o ya habría evolucionado
+        if (e.appear != null && ((LV.gate > 0 && wl < e.appear) || wl > e.leave)) continue;
+        for (let i = 0; i < w; i++) bag.push(e);
+      }
     }
-    return bag.length ? bag : cast[0].list;
+    return bag.length ? bag : last;
   }
 
   /** dex del elenco que aparecerán pronto (para precargar sprites). */
@@ -233,8 +273,148 @@ G.Enemies = (() => {
     return out;
   }
 
+  // ---------------- niveles de los salvajes (MODE 'level') ----------------
+
+  let MODE = 'level';
+  // Los números que eligieron las pruebas del simulador (variante "M11", 2026-10-15): con los
+  // nuevos se aguanta más y no se muere todo el mundo a la vez; con todo mejorado, como antes.
+  const LV_DEFAULTS = {
+    lv0: 3,          // nivel al empezar
+    lv_min: 4,       // + niveles por minuto
+    lv_acc: 0.5,     // + niveles por minuto² (cada vez más deprisa)...
+    acc_from: 6,     //   ...contando desde este minuto
+    spread: 2,       // cada uno sale hasta ± estos niveles
+    hp_k: 2.8,       // vida = hp_k × el PS de los juegos para su PS base y su nivel
+    dmg_k: 5.4,      // daño = dmg_k × factor de nivel (dmg_lv·Nv + 2) × su ataque base sobre uno medio
+    dmg_lv: 0.2,     //   (2/5 en los juegos: sube demasiado deprisa para este juego)
+    grow: 0.03,      // vida extra por nivel, acumulada (×1,03 cada nivel)
+    xp0: 3.4,        // experiencia: xp0 + xp_lv × nivel (luego × XP_K del spawner)
+    xp_lv: 0.17,
+    bands: [1, 12, 22, 32, 42, 52],   // grupos del elenco según el nivel desde el que salen
+    linger: 15,      // una forma que evoluciona sale hasta su nivel de evolución + esto
+    gate: 1,         // 1: cada forma espera a su nivel de evolución · 0: sólo al de su grupo
+    boss_lv: 8,      // jefes: nivel salvaje + esto,
+    boss_hp: 5,      //   ×vida sobre uno salvaje de su especie y nivel,
+    boss_dmg: 0.8,   //   ×daño
+    cap: 0           // nivel máximo (0 = sin tope)
+  };
+  let LV = Object.assign({}, LV_DEFAULTS, { bands: LV_DEFAULTS.bands.slice() });
+  let lvTiers = null, appear = null;
+
+  /** Para pruebas y herramientas: 'tier' o 'level', y números distintos ({ lv_min: 5 }). */
+  function setMode(m, over) {
+    MODE = m;
+    LV = Object.assign({}, LV_DEFAULTS, { bands: LV_DEFAULTS.bands.slice() }, over || {});
+    lvTiers = null; cast = null; bosses = null;
+  }
+
+  const tiers = () => (MODE === 'level' ? levelTiers() : TIERS);
+
+  /** Nivel salvaje en el segundo t (sin redondear). */
+  function wildLevel(t) {
+    const m = t / 60, u = Math.max(0, m - LV.acc_from);
+    const l = LV.lv0 + LV.lv_min * m + LV.lv_acc * u * u;
+    return LV.cap > 0 ? Math.min(l, LV.cap) : l;
+  }
+
+  /** Segundo en que el nivel salvaje llega a l (0 si ya empieza ahí o más). */
+  function timeOfLevel(l) {
+    const a = LV.lv_acc, b = LV.lv_min, f = LV.acc_from, c = LV.lv0 - l;
+    if (c >= 0) return 0;
+    if (a <= 0 || LV.lv0 + b * f >= l) return -c / Math.max(b, 0.001) * 60;
+    const c2 = LV.lv0 + b * f - l;
+    return (f + (-b + Math.sqrt(b * b - 4 * a * c2)) / (2 * a)) * 60;
+  }
+
+  /** Nivel de uno que sale ahora: el salvaje ± spread (enteros, mínimo 1). */
+  function spawnLevel(t) {
+    const s = Math.round(LV.spread);
+    let l = Math.floor(wildLevel(t));
+    if (s > 0) l += Math.floor(Math.random() * (2 * s + 1)) - s;
+    return Math.max(1, l);
+  }
+
+  // Fórmulas de los juegos (IV 31, sin EV, naturaleza neutra).
+  const hpStat = (b, l) => (2 * b + 31) * l / 100 + l + 10;
+  /** Daño: factor de nivel (dmg_lv·Nv + 2, igual que en los juegos al nivel 3) × su ataque base sobre uno medio (75). */
+  function dmgOf(batk, l) {
+    const k = LV.dmg_lv;
+    return (k * l + 2) * (3.2 / (k * 3 + 2)) * (2 * batk + 31) / 181;
+  }
+
+  /** La definición con sus stats a nivel l. */
+  function atLevel(d, l) {
+    const lv = Math.max(1, l), grow = Math.pow(1 + LV.grow, Math.max(0, lv - LV.lv0));
+    const o = Object.assign({}, d);
+    o.level = Math.floor(lv);
+    o.hp = Math.max(1, Math.round(LV.hp_k * hpStat(d.bhp, lv) * d.hp_m * grow));
+    o.dmg = round2(LV.dmg_k * dmgOf(d.batk, lv) * d.dmg_m);
+    o.spd = Math.round((56 + Math.min(16, lv * 0.3)) * d.spd_k * d.spd_m);
+    o.xp = Math.max(3, Math.round((LV.xp0 + LV.xp_lv * lv) * d.xp_m));
+    if (d.shotDmg != null) o.shotDmg = round2(o.dmg * d.shot_m / d.dmg_m);
+    return o;
+  }
+
+  /** Un jefe a nivel l: boss_hp × la vida de uno salvaje de su especie y nivel. */
+  function bossAtLevel(b, l) {
+    const lv = Math.max(1, l), grow = Math.pow(1 + LV.grow, Math.max(0, lv - LV.lv0));
+    const o = Object.assign({}, b);
+    o.level = Math.floor(lv);
+    o.hp = Math.round(LV.hp_k * hpStat(b.bhp, lv) * LV.boss_hp * grow);
+    o.dmg = round2(LV.dmg_k * dmgOf(b.batk, lv) * LV.boss_dmg);
+    o.shotDmg = round2(o.dmg * 0.46);
+    return o;
+  }
+
+  /**
+   * Nivel desde el que sale cada especie: una forma evolucionada, desde su nivel de evolución (el
+   * de los juegos o el estimado, data/evolutions.js); la primera de una familia que evoluciona,
+   * desde el 1; una que no evoluciona, desde el de las formas evolucionadas con stats parecidos.
+   * Deja de salir en el nivel de su siguiente forma + linger (nunca, si es la última).
+   */
+  function appearData() {
+    if (appear) return appear;
+    appear = {};
+    const F = G.Families;
+    // total de stats base -> nivel, ajustado con las evoluciones por nivel (como tools/fetch_evolutions.py)
+    let n = 0, sx = 0, sy = 0, sxx = 0, sxy = 0;
+    for (const k in G.EVO) {
+      const lv = (G.EVO[k].how && G.EVO[k].how.lv) | 0;
+      if (lv > 0 && G.DEX_BY[k]) { const x = G.DEX_BY[k].bst; n++; sx += x; sy += lv; sxx += x * x; sxy += x * lv; }
+    }
+    const b1 = (n * sxy - sx * sy) / (n * sxx - sx * sx), b0 = (sy - b1 * sx) / n;
+    for (const p of G.DEX) {
+      const d = p.dex, e = G.EVO[d] || {}, h = e.how || {};
+      let from = 1;
+      if ((h.lv | 0) > 0 || (h.est | 0) > 0) from = Math.min(60, (h.lv | 0) > 0 ? h.lv : h.est);
+      else if (F.members(F.famOf(d)).length <= 1) from = G.U.clamp(Math.round(b0 + b1 * p.bst), 1, 60);
+      let nxt = 999;
+      for (const c of F.members(F.famOf(d))) if (G.EVO[c] && G.EVO[c].from === d) nxt = Math.min(nxt, F.reqLevel(c));
+      appear[d] = [from, nxt];
+    }
+    return appear;
+  }
+  const appearLevel = dex => (appearData()[dex] || [1, 999])[0];
+  function leaveLevel(dex) {
+    const nxt = (appearData()[dex] || [1, 999])[1];
+    return nxt + (nxt < 999 ? LV.linger : 0);
+  }
+
+  /** Grupos del elenco con niveles: uno por franja, desde que el nivel salvaje llega a ella. */
+  function levelTiers() {
+    if (lvTiers) return lvTiers;
+    const b = LV.bands;
+    lvTiers = b.map((lv, i) => Object.assign({}, TIERS[Math.min(i, TIERS.length - 1)], {
+      from: i === 0 ? 0 : Math.round(timeOfLevel(lv)),
+      lv: [i > 0 ? lv : -999, i + 1 < b.length ? b[i + 1] : 9999]
+    }));
+    return lvTiers;
+  }
+
   return {
     TIERS, BOSS_SLOTS, LATE_FROM, rollRun, scale, bossScale, late, bagAt, upcomingDex, candidates, hordeTypes, hordeDefs,
+    get MODE() { return MODE; }, get LV() { return LV; }, LV_DEFAULTS, setMode, tiers, wildLevel, timeOfLevel, spawnLevel,
+    atLevel, bossAtLevel, appearLevel, leaveLevel, defFor, behaviorOf,
     get BOSSES() { if (!bosses) rollRun(); return bosses; },
     get cast() { if (!cast) rollRun(); return cast; }
   };

@@ -81,8 +81,17 @@ G.Spawner = (() => {
     const pt = freePoint(pl, angle == null ? Math.random() * 6.2832 : angle, isFlyer(def));
     if (!pt) return null;
     const shiny = rollShiny(def.dex);
-    const e = new G.Enemy(def, pt[0], pt[1], scaled(G.Enemies.scale(t), G.Coop.scaleHp(players.length) * hpK(t)));
-    e.dmg *= DMG_K; e.xp = Math.round(e.xp * XP_K);
+    let e;
+    if (def.bhp != null) {
+      // niveles (data/enemies.js): sus stats a su nivel; encima sólo el tiempo extra
+      const k = G.Enemies.late(t);
+      e = new G.Enemy(G.Enemies.atLevel(def, G.Enemies.spawnLevel(t)), pt[0], pt[1],
+        scaled({ hp: k, dmg: Math.pow(k, 0.7), spd: 1 }, G.Coop.scaleHp(players.length)));
+    } else {
+      e = new G.Enemy(def, pt[0], pt[1], scaled(G.Enemies.scale(t), G.Coop.scaleHp(players.length) * hpK(t)));
+      e.dmg *= DMG_K;
+    }
+    e.xp = Math.round(e.xp * XP_K);
     if (G.EnemyMgr.count >= CAP * ELITE_FROM) { e.maxHp = e.hp = Math.round(e.maxHp * 1.6); e.dmg *= 1.25; e.xp = Math.round(e.xp * 1.6); }
     if (shiny) e.makeShiny();
     if (G.Events.golden) e.makeGolden();
@@ -96,7 +105,16 @@ G.Spawner = (() => {
 
   function spawnBoss(pl, t, b) {
     const [x, y] = ringPoint(pl, Math.random() * 6.2832);
-    const e = new G.Enemy(b, x, y, scaled(G.Enemies.bossScale(t), G.Coop.scaleHp(players.length) * (players.length > 1 ? 1.4 : 1)), true);
+    const coop = G.Coop.scaleHp(players.length) * (players.length > 1 ? 1.4 : 1);
+    let e;
+    if (b.bhp != null) {
+      // niveles: el suyo de ahora (nivel salvaje + boss_lv); encima sólo el tiempo extra
+      const k = G.Enemies.late(t);
+      e = new G.Enemy(G.Enemies.bossAtLevel(b, G.Enemies.wildLevel(t) + G.Enemies.LV.boss_lv), x, y,
+        scaled({ hp: k, dmg: Math.pow(k, 0.7), spd: 1 }, coop), true);
+    } else {
+      e = new G.Enemy(b, x, y, scaled(G.Enemies.bossScale(t), coop), true);
+    }
     if (rollShiny(b.dex)) e.makeShiny();
     G.EnemyMgr.add(e);
     say('¡' + e.name + (e.shiny ? ' shiny' : '') + ' salvaje apareció!', 3.2);

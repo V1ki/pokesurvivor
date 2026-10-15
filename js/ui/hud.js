@@ -106,7 +106,12 @@ G.HUD = (() => {
       bar(ctx, (w - bw) / 2, 70, bw, 12, boss.hp / boss.maxHp, '#ffcb3d');
       ctx.font = F(800, 10);
       ctx.fillStyle = '#20160a';
-      ctx.fillText(boss.name.toUpperCase(), w / 2, 80);
+      ctx.fillText(boss.name.toUpperCase() + (boss.def.level ? ' · NV. ' + boss.def.level : ''), w / 2, 80);
+    } else if (G.Enemies.MODE === 'level' && !G.Rift.inArena) {
+      // nivel de los salvajes (data/enemies.js): la dificultad va con él
+      ctx.font = F(800, 10);
+      ctx.fillStyle = '#ffcb3d';
+      ctx.fillText('POKÉMON SALVAJES NV. ' + Math.floor(G.Enemies.wildLevel(st.time)), w / 2, 74);
     }
 
     // ---------- aviso ----------

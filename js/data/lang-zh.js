@@ -1254,6 +1254,7 @@ G.I18n.add({
   'Familia de {x}: {x} estrellas': '{x}家族：突破 {x} 次',
   'Movimientos que aprende (los apagados, con más nivel de familia)': '会学的招式（暗的需要更高的家族等级）',
   'Básico': '基础',
+  'POKÉMON SALVAJES NV. {x}': '野生宝可梦 {x} 级',
   'Mientras sepa menos de 4 ataques, los básicos de su tipo completan la lista.': '会的攻击招式不足 4 个时，用本属性的基础招式补上。',
   'Necesita su familia a nivel {x}': '家族需要达到 {x} 级',
   'También se desbloquea con fragmentos en Mejoras cuando su familia llega al nivel {x}.': '家族达到 {x} 级后，也可以在强化界面用碎片解锁。',

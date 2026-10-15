@@ -171,12 +171,24 @@ amarillo cuando es muy eficaz; gris si no (sin texto, para no cargar la pantalla
 
 ## 5. Enemigos
 
-- **De todas las generaciones.** 6 tramos por total de stats base; en cada run se
-  sortea un elenco de 7 Pokémon por tramo, así cada partida es distinta.
+- **De todas las generaciones.** En cada run se sortea un elenco de 7 Pokémon por grupo (6
+  grupos), así cada partida es distinta.
+- **Nivel** (`js/data/enemies.js`, desde 2026-10-15): el de los salvajes empieza en **3**, sube
+  **4 por minuto** y desde el minuto 6 cada vez más deprisa (+0,5·(min − 6)²): 15 al minuto 3, 27
+  al 6, 51 al 10, 104 al 15. Cada uno sale con ese nivel ±2. Se ve debajo del reloj.
+- **Stats por especie y nivel** (fórmulas de los juegos, IV 31): vida = 2,8 × PS(PS base, Nv) ×
+  1,03^(Nv − 3); daño de contacto = 5,4 × (0,2·Nv + 2) × su ataque base (el mayor de Ataque y
+  Ataque Especial) sobre uno medio; velocidad por su Velocidad base; experiencia 3,4 + 0,17·Nv.
+- **Qué especies salen:** cada forma, desde su nivel de evolución (Charmeleon desde el 16,
+  Charizard desde el 36; si en los juegos evoluciona con objeto, el estimado por sus stats), y deja
+  de salir 15 niveles después de cuando habría evolucionado; las que no evolucionan, desde el nivel
+  de las formas evolucionadas con stats base parecidos. Los grupos del elenco son franjas de ese
+  nivel (1, 12, 22, 32, 42, 52).
 - IA según tipos: persecución, embestida telegrafiada (`Charge` → `Attack`),
   disparo a distancia o tanque.
 - **5 jefes** (min. 3, 6, 9, 12, 15): Pokémon fuertes **no legendarios**
-  (pseudolegendarios, Slaking...) al azar, cada vez más fuertes; cada uno suelta
+  (pseudolegendarios, Slaking...) al azar, **8 niveles** por encima de los salvajes (×5 vida sobre
+  uno salvaje de su especie y nivel, ×0,8 daño); cada uno suelta
   un **ticket ×10**. Los legendarios sólo salen en las grietas. Durante un combate de jefe las oleadas bajan al 25%, no
   hay mareas y suena el tema de jefe.
 - Mareas cada ~45 s. Tope de **280** enemigos a la vez; al llegar al tope, los
@@ -551,6 +563,24 @@ guitarra punteada, bajo, pad, lead y batería, con reverb). Cero ficheros.
   Impresionar, Golpe Bajo, Destructor, Carantoña, Arañazo, Cuchillada, Golpes Furia, Finta).
 - Números iniciales de `G.Families.R` (los mismos que `godot/debug/family_rules.gd`); se
   ajustan con el simulador (`godot/tests/sim_play.gd --campaign --rules=family`).
+**2026-10-15 · Pokémon salvajes con nivel**
+- Por qué: con los tramos, la vida de los salvajes daba saltos (al minuto 1:10 se duplicaba de
+  golpe) y el 70 % de los novatos del simulador caía dentro del mismo minuto; las mejoras apenas
+  movían ese muro. Ahora la dificultad va con el nivel, y el nivel con el tiempo.
+- Elegido con el simulador de Godot (`godot/sim/enemy_defs.gd`, mismo cálculo; Scorbunny con su
+  lista de movimientos, 30 partidas por perfil, hasta 20 min; 13 variantes). Con la fórmula de
+  los juegos tal cual, la vida crece demasiado poco y los buenos no morían nunca; el daño de los
+  juegos (2·Nv/5 + 2) era demasiado para los novatos; la experiencia tiene que ser la de antes o
+  se sube de nivel demasiado deprisa; el nivel inicial (1, 3 o 6) cambia poco, lo que manda es lo
+  rápido que sube.
+- Mediana de lo que aguantan (antes → ahora): cuenta nueva (90 partidas por perfil, experto 30),
+  novato 1:50 → 2:10, normal 3:01 → 3:58 (llegan a 5 min el 37 % en vez del 6 %), experto 3:52 →
+  6:31; con todo mejorado (30) 5:38 → 6:15, 7:28 → 9:28, 13:04 → 12:19. Los novatos siguen cayendo
+  hacia el minuto 2, casi siempre por los corredores: eso no va con el nivel.
+- Cada forma sólo sale desde su propio nivel de evolución (no basta con que empiece su grupo);
+  la dificultad no cambia con eso.
+- `MODE 'tier'` en `js/data/enemies.js` vuelve al sistema anterior.
+
 - Con sólo los movimientos de su lista, muchos Pokémon empezaban con 1 o 2 y se hacía corto:
   se completan hasta 4 ataques con los básicos de su tipo y se empieza con uno de su tipo. En el
   simulador los bots aguantan algo menos que con su lista sola (reparten las cartas entre más
