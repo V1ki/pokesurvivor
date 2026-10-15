@@ -12,7 +12,9 @@ G.CHANGELOG = [
     ['Su vida, su daño y su velocidad salen de sus stats base y de su nivel, con las fórmulas de los juegos: al mismo nivel, un Snorlax aguanta mucho más que un Caterpie.',
      'Their HP, damage and speed come from their base stats and their level, with the formulas from the games: at the same level, a Snorlax takes far more hits than a Caterpie.'],
     ['Cada forma sale desde su nivel de evolución, como en los juegos: Charmeleon a partir del nivel 16 y Charizard del 36; las que ya habrían evolucionado dejan de salir.',
-     'Each form shows up from its evolution level, like in the games: Charmeleon from level 16 and Charizard from 36; the ones that would have evolved by then stop showing up.']
+     'Each form shows up from its evolution level, like in the games: Charmeleon from level 16 and Charizard from 36; the ones that would have evolved by then stop showing up.'],
+    ['Nivel máximo 100, como en los juegos. Se llega hacia el minuto 15 y desde ahí empieza el tiempo extra: siguen haciéndose más fuertes.',
+     'Maximum level 100, like in the games. It is reached around minute 15, and from then on overtime begins: they keep getting stronger.']
   ], chg: [
     ['La dificultad sube de forma pareja, sin saltos de golpe, y se suele llegar más lejos que antes. Con las mejoras al máximo, las partidas duran más o menos lo mismo.',
      'The difficulty rises steadily, with no sudden jumps, and you usually get further than before. With everything upgraded, runs last about as long as before.'],

@@ -935,11 +935,12 @@ for (const [name, data] of Object.entries(files)) {
     appear: G.DEX.map(p => [p.dex, E.appearLevel(p.dex), E.leaveLevel(p.dex)]),
     tiers: ts.map(t => ({ from: t.from, lv: t.lv, dex: E.candidates(t).map(p => p.dex) })),
     curve: [0, 30, 59, 60, 200, 360, 361, 500, 600, 900, 1500].map(t => [t, E.wildLevel(t)]),
+    stat_curve: [0, 600, 880, 881, 900, 1200, 1500].map(t => [t, E.statLevel(t)]),
     horde_types: [0, 100, 140, 200, 300, 400, 500, 700, 1000].map(t => [t, E.hordeTypes(t)]),
     time_of: [1, 3, 4, 12, 22, 27, 28, 32, 52, 90, 150].map(l => [l, E.timeOfLevel(l)]),
     defs: [0, 2, 4].map(ti => ({ ti, rows: G.DEX.map(p => {
       const d = E.defFor(p, ts[ti], ti);
-      return [row(d)].concat([1, 17, 60].map(l => row(E.atLevel(d, l))));
+      return [row(d)].concat([1, 17, 60, 120].map(l => row(E.atLevel(d, l))));
     }) })),
     bosses: Array.from({ length: 6 }, () => E.rollRun().bosses.map((b, slot) => ({ slot, def: Object.assign({}, b) }))).flat()
   };

@@ -49,7 +49,8 @@ const LV_DEFAULTS := {
 	"boss_lv": 8.0,      # bosses: wild level + this,
 	"boss_hp": 5.0,      #   HP × this over a wild one of that species and level,
 	"boss_dmg": 0.8,     #   damage ×
-	"cap": 0.0,          # highest wild level (0 = none)
+	"cap": 100.0,        # highest level shown (like the games; 0 = none): the wild level stops there...
+	"over_cap": 1.0,     # ...but 1: they keep getting stronger at the same pace past it (overtime) · 0: they stop
 }
 static var LV: Dictionary = LV_DEFAULTS.duplicate(true)
 static var _lv_tiers: Array = []
@@ -275,7 +276,7 @@ static func boss_def(slot: Dictionary, bp: Dictionary) -> Dictionary:
 			"spd": U.jround(U.clampf_(40.0 + bs * 0.5, 40.0, 100.0)),
 			"behavior": "ranged" if behavior_of(bp) == "ranged" else ("charger" if bs > 90.0 else "chase"),
 			"shotCd": 1.1, "range": 260.0}
-		return boss_at_level(b, wild_level(float(slot["at"])) + float(LV["boss_lv"]))
+		return boss_at_level(b, boss_level(float(slot["at"])))
 	return {
 		"at": float(slot["at"]), "dex": int(bp["dex"]), "name": bp["name"],
 		"hp": U.jround(float(slot["hp"]) * 1.35), "spd": U.jround(U.clampf_(40.0 + bs * 0.5, 40.0, 100.0)),
@@ -391,12 +392,24 @@ static func set_mode(m: String, text := "") -> Array:
 	return bad
 
 ## Wild level at run time t (not rounded): lv0 + lv_min·m + lv_acc·(m - acc_from)², m in minutes
-## (the last part only after acc_from).
+## (the last part only after acc_from), up to the cap. What the stats come from: stat_level.
 static func wild_level(t: float) -> float:
+	var l := stat_level(t)
+	return minf(l, float(LV["cap"])) if float(LV["cap"]) > 0.0 else l
+
+## The level the stats come from: the same curve, past the cap too with LV.over_cap (overtime:
+## shown as the cap, they keep getting stronger at the same pace).
+static func stat_level(t: float) -> float:
 	var m := t / 60.0
 	var u := maxf(0.0, m - float(LV["acc_from"]))
 	var l := float(LV["lv0"]) + float(LV["lv_min"]) * m + float(LV["lv_acc"]) * u * u
-	return minf(l, float(LV["cap"])) if float(LV["cap"]) > 0.0 else l
+	if float(LV["over_cap"]) <= 0.0 and float(LV["cap"]) > 0.0:
+		l = minf(l, float(LV["cap"]))
+	return l
+
+## The level shown for a stats level (the cap at most).
+static func shown_level(l: float) -> int:
+	return mini(int(l), int(LV["cap"])) if float(LV["cap"]) > 0.0 else int(l)
 
 ## When the wild level reaches l (s); 0 for levels it starts at or above.
 static func time_of_level(l: float) -> float:
@@ -413,13 +426,22 @@ static func time_of_level(l: float) -> float:
 	var c2 := float(LV["lv0"]) + b * f - l
 	return (f + (-b + sqrt(b * b - 4.0 * a * c2)) / (2.0 * a)) * 60.0
 
-## Level of one that appears now: the wild level ± spread (whole levels, at least 1).
+## Level of one that appears now (its stats level): the wild level ± spread, whole levels, at least 1.
 static func spawn_level(t: float) -> int:
 	var s := int(LV["spread"])
-	var l := int(floorf(wild_level(t)))
+	var l := int(floorf(stat_level(t)))
 	if s > 0:
 		l += randi() % (2 * s + 1) - s
+	if float(LV["over_cap"]) <= 0.0 and float(LV["cap"]) > 0.0:
+		l = mini(l, int(LV["cap"]))
 	return maxi(1, l)
+
+## A boss's stats level at time t: the wild one + boss_lv (shown up to the cap).
+static func boss_level(t: float) -> float:
+	var l := stat_level(t) + float(LV["boss_lv"])
+	if float(LV["over_cap"]) <= 0.0 and float(LV["cap"]) > 0.0:
+		l = minf(l, float(LV["cap"]))
+	return l
 
 ## The main games' stat formula (IV 31, no EVs, neutral nature).
 static func hp_stat(b: float, l: float) -> float:
@@ -444,7 +466,7 @@ static func at_level(d: Dictionary, l: float) -> Dictionary:
 	var o := d.duplicate()
 	var lv := maxf(1.0, l)
 	var grow := pow(1.0 + float(LV["grow"]), maxf(0.0, lv - float(LV["lv0"])))
-	o["level"] = int(lv)
+	o["level"] = shown_level(lv)
 	o["hp"] = maxf(1.0, U.jround(float(LV["hp_k"]) * hp_stat(float(d["bhp"]), lv) * float(d["hp_m"]) * grow))
 	o["dmg"] = U.round2(float(LV["dmg_k"]) * dmg_of(float(d["batk"]), lv) * float(d["dmg_m"]))
 	o["spd"] = U.jround((56.0 + minf(16.0, lv * 0.3)) * float(d["spd_k"]) * float(d["spd_m"]))
@@ -458,7 +480,7 @@ static func boss_at_level(b: Dictionary, l: float) -> Dictionary:
 	var o := b.duplicate()
 	var lv := maxf(1.0, l)
 	var grow := pow(1.0 + float(LV["grow"]), maxf(0.0, lv - float(LV["lv0"])))
-	o["level"] = int(lv)
+	o["level"] = shown_level(lv)
 	o["hp"] = U.jround(float(LV["hp_k"]) * hp_stat(float(b["bhp"]), lv) * float(LV["boss_hp"]) * grow)
 	o["dmg"] = U.round2(float(LV["dmg_k"]) * dmg_of(float(b["batk"]), lv) * float(LV["boss_dmg"]))
 	o["shotDmg"] = U.round2(float(o["dmg"]) * 0.46)

@@ -110,7 +110,7 @@ G.Spawner = (() => {
     if (b.bhp != null) {
       // niveles: el suyo de ahora (nivel salvaje + boss_lv); encima sólo el tiempo extra
       const k = G.Enemies.late(t);
-      e = new G.Enemy(G.Enemies.bossAtLevel(b, G.Enemies.wildLevel(t) + G.Enemies.LV.boss_lv), x, y,
+      e = new G.Enemy(G.Enemies.bossAtLevel(b, G.Enemies.bossLevel(t)), x, y,
         scaled({ hp: k, dmg: Math.pow(k, 0.7), spd: 1 }, coop), true);
     } else {
       e = new G.Enemy(b, x, y, scaled(G.Enemies.bossScale(t), coop), true);
@@ -137,7 +137,9 @@ G.Spawner = (() => {
     // Aviso al empezar el tiempo extra (los enemigos se endurecen cada vez más
     // deprisa, ver data/enemies.js).
     const lf = G.Enemies.LATE_FROM * 60;
-    if (t >= lf && t - dt < lf) { say('¡Los Pokémon salvajes se vuelven cada vez más fuertes!', 3.6); G.Audio.sfx('boss'); }
+    // el tiempo extra (minuto 60) y, con niveles, cuando el salvaje llega al tope (pasado él, más fuertes)
+    const E = G.Enemies, lc = E.MODE === 'level' && E.LV.cap > 0 && E.LV.over_cap > 0 ? E.timeOfLevel(E.LV.cap) : -1;
+    if ((t >= lf && t - dt < lf) || (lc > 0 && t >= lc && t - dt < lc)) { say('¡Los Pokémon salvajes se vuelven cada vez más fuertes!', 3.6); G.Audio.sfx('boss'); }
 
     // --- jefes ---
     const b = G.Enemies.BOSSES[bossIdx];

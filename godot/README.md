@@ -205,7 +205,10 @@ minute `acc_from`); each one spawns at that level ± `spread`. Its HP is the gam
 the games) × its attack base stat over an average one (× `dmg_k`), its speed from its base speed. A form
 appears from the level it evolves at (Charmeleon from 16) and one that would have evolved leaves
 `linger` levels later; Pokémon that don't evolve appear from the level of evolved forms with similar
-base stats. Bosses are `boss_lv` levels above (× `boss_hp` HP). `EnemyDefs.LV_DEFAULTS` holds every
+base stats. Bosses are `boss_lv` levels above (× `boss_hp` HP). The level shown stops at `cap` (100,
+reached around 14:45); past it (`over_cap`) the stats keep following the curve (overtime, with the
+"stronger and stronger" banner), since stopping there let a fifth of the fully upgraded experts last
+past minute 60. `EnemyDefs.LV_DEFAULTS` holds every
 number, `--enemy-set=k=v,...` changes them (e.g. `--enemy-set=lv0=5,lv_min=4,grow=0.02`); the report
 prints the wild level at a few times. Campaign accounts of the tier model are saved apart
 (`..._tier.json`), and so are those with changed level numbers (`..._lv.json`).

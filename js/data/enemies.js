@@ -189,7 +189,7 @@ G.Enemies = (() => {
           spd: Math.round(G.U.clamp(40 + baseSpd(p) * 0.5, 40, 100)),
           behavior: behaviorOf(p) === 'ranged' ? 'ranged' : (baseSpd(p) > 90 ? 'charger' : 'chase'),
           shotCd: 1.1, range: 260 };
-        return bossAtLevel(b, wildLevel(slot.at) + LV.boss_lv);
+        return bossAtLevel(b, bossLevel(slot.at));
       }
       return {
         at: slot.at, dex: p.dex, name: p.name,
@@ -296,7 +296,8 @@ G.Enemies = (() => {
     boss_lv: 8,      // jefes: nivel salvaje + esto,
     boss_hp: 5,      //   ×vida sobre uno salvaje de su especie y nivel,
     boss_dmg: 0.8,   //   ×daño
-    cap: 0           // nivel máximo (0 = sin tope)
+    cap: 100,        // nivel máximo que se ve, como en los juegos (0 = sin tope): el salvaje se para ahí...
+    over_cap: 1      // ...pero 1: siguen haciéndose más fuertes al mismo ritmo (tiempo extra) · 0: se paran
   };
   let LV = Object.assign({}, LV_DEFAULTS, { bands: LV_DEFAULTS.bands.slice() });
   let lvTiers = null, appear = null;
@@ -310,12 +311,22 @@ G.Enemies = (() => {
 
   const tiers = () => (MODE === 'level' ? levelTiers() : TIERS);
 
-  /** Nivel salvaje en el segundo t (sin redondear). */
+  /** Nivel salvaje en el segundo t (sin redondear), hasta el tope. De qué salen los stats: statLevel. */
   function wildLevel(t) {
-    const m = t / 60, u = Math.max(0, m - LV.acc_from);
-    const l = LV.lv0 + LV.lv_min * m + LV.lv_acc * u * u;
+    const l = statLevel(t);
     return LV.cap > 0 ? Math.min(l, LV.cap) : l;
   }
+
+  /** El nivel del que salen los stats: la misma curva, también pasado el tope con LV.over_cap (tiempo
+   *  extra: se ve el tope y siguen haciéndose más fuertes al mismo ritmo). */
+  function statLevel(t) {
+    const m = t / 60, u = Math.max(0, m - LV.acc_from);
+    const l = LV.lv0 + LV.lv_min * m + LV.lv_acc * u * u;
+    return LV.over_cap <= 0 && LV.cap > 0 ? Math.min(l, LV.cap) : l;
+  }
+
+  /** El nivel que se enseña para un nivel de stats (como mucho el tope). */
+  const shownLevel = l => (LV.cap > 0 ? Math.min(Math.floor(l), LV.cap) : Math.floor(l));
 
   /** Segundo en que el nivel salvaje llega a l (0 si ya empieza ahí o más). */
   function timeOfLevel(l) {
@@ -326,12 +337,19 @@ G.Enemies = (() => {
     return (f + (-b + Math.sqrt(b * b - 4 * a * c2)) / (2 * a)) * 60;
   }
 
-  /** Nivel de uno que sale ahora: el salvaje ± spread (enteros, mínimo 1). */
+  /** Nivel (de stats) de uno que sale ahora: el salvaje ± spread, enteros, mínimo 1. */
   function spawnLevel(t) {
     const s = Math.round(LV.spread);
-    let l = Math.floor(wildLevel(t));
+    let l = Math.floor(statLevel(t));
     if (s > 0) l += Math.floor(Math.random() * (2 * s + 1)) - s;
+    if (LV.over_cap <= 0 && LV.cap > 0) l = Math.min(l, LV.cap);
     return Math.max(1, l);
+  }
+
+  /** Nivel (de stats) de un jefe en el segundo t: el salvaje + boss_lv (se ve hasta el tope). */
+  function bossLevel(t) {
+    const l = statLevel(t) + LV.boss_lv;
+    return LV.over_cap <= 0 && LV.cap > 0 ? Math.min(l, LV.cap) : l;
   }
 
   // Fórmulas de los juegos (IV 31, sin EV, naturaleza neutra).
@@ -346,7 +364,7 @@ G.Enemies = (() => {
   function atLevel(d, l) {
     const lv = Math.max(1, l), grow = Math.pow(1 + LV.grow, Math.max(0, lv - LV.lv0));
     const o = Object.assign({}, d);
-    o.level = Math.floor(lv);
+    o.level = shownLevel(lv);
     o.hp = Math.max(1, Math.round(LV.hp_k * hpStat(d.bhp, lv) * d.hp_m * grow));
     o.dmg = round2(LV.dmg_k * dmgOf(d.batk, lv) * d.dmg_m);
     o.spd = Math.round((56 + Math.min(16, lv * 0.3)) * d.spd_k * d.spd_m);
@@ -359,7 +377,7 @@ G.Enemies = (() => {
   function bossAtLevel(b, l) {
     const lv = Math.max(1, l), grow = Math.pow(1 + LV.grow, Math.max(0, lv - LV.lv0));
     const o = Object.assign({}, b);
-    o.level = Math.floor(lv);
+    o.level = shownLevel(lv);
     o.hp = Math.round(LV.hp_k * hpStat(b.bhp, lv) * LV.boss_hp * grow);
     o.dmg = round2(LV.dmg_k * dmgOf(b.batk, lv) * LV.boss_dmg);
     o.shotDmg = round2(o.dmg * 0.46);
@@ -413,7 +431,7 @@ G.Enemies = (() => {
 
   return {
     TIERS, BOSS_SLOTS, LATE_FROM, rollRun, scale, bossScale, late, bagAt, upcomingDex, candidates, hordeTypes, hordeDefs,
-    get MODE() { return MODE; }, get LV() { return LV; }, LV_DEFAULTS, setMode, tiers, wildLevel, timeOfLevel, spawnLevel,
+    get MODE() { return MODE; }, get LV() { return LV; }, LV_DEFAULTS, setMode, tiers, wildLevel, statLevel, timeOfLevel, spawnLevel, bossLevel,
     atLevel, bossAtLevel, appearLevel, leaveLevel, defFor, behaviorOf,
     get BOSSES() { if (!bosses) rollRun(); return bosses; },
     get cast() { if (!cast) rollRun(); return cast; }

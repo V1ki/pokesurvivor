@@ -80,10 +80,19 @@ static func _curve(t: Object, V: Dictionary) -> void:
 	for r in V["curve"]:
 		if not _near(EnemyDefs.wild_level(float(r[0])), r[1]):
 			bad.append("wild_level(%s)=%s vs %s" % [r[0], EnemyDefs.wild_level(float(r[0])), r[1]])
+	for r in V.get("stat_curve", []):
+		if not _near(EnemyDefs.stat_level(float(r[0])), r[1]):
+			bad.append("stat_level(%s)=%s vs %s" % [r[0], EnemyDefs.stat_level(float(r[0])), r[1]])
 	for r in V["time_of"]:
 		if not _near(EnemyDefs.time_of_level(float(r[0])), r[1]):
 			bad.append("time_of_level(%s)=%s vs %s" % [r[0], EnemyDefs.time_of_level(float(r[0])), r[1]])
-	t.check("level curve and its inverse (%d points)" % (V["curve"].size() + V["time_of"].size()), bad.is_empty(), str(bad.slice(0, 4)))
+	t.check("level curve (shown up to 100, stats level past it) and its inverse (%d points)" % (V["curve"].size() + V.get("stat_curve", []).size() + V["time_of"].size()),
+		bad.is_empty(), str(bad.slice(0, 4)))
+	var dd := EnemyDefs.def_for(Data.dex_by[6], EnemyDefs.tiers()[3], 3)
+	var a100 := EnemyDefs.at_level(dd, 100.0)
+	var a120 := EnemyDefs.at_level(dd, 120.0)
+	t.check("past the cap: shown as Lv 100, HP and damage keep growing", int(a120["level"]) == 100 and float(a120["hp"]) > float(a100["hp"]) * 1.5 \
+		and float(a120["dmg"]) > float(a100["dmg"]), "Lv100 hp %s dmg %s · Lv120 hp %s dmg %s" % [a100["hp"], a100["dmg"], a120["hp"], a120["dmg"]])
 	var hb: Array = []
 	for r in V["horde_types"]:
 		if JSON.stringify(EnemyDefs.horde_types(float(r[0]))) != JSON.stringify(r[1]):
@@ -102,11 +111,11 @@ static func _defs(t: Object, V: Dictionary) -> void:
 			var dex := int(rows[0][0])
 			var d := EnemyDefs.def_for(Data.dex_by[dex], ts[ti], ti)
 			var mine := [_row(d)]
-			for l in [1.0, 17.0, 60.0]:
+			for l in [1.0, 17.0, 60.0, 120.0]:
 				mine.append(_row(EnemyDefs.at_level(d, l)))
 			if not _near(mine, rows):
 				bad.append("%d: %s vs %s" % [dex, str(mine[1]), str(rows[1])])
-		t.check("def_for + at_level (Lv 1 / 17 / 60) of all %d species, group %d" % [g["rows"].size(), ti], bad.is_empty(), str(bad.slice(0, 3)))
+		t.check("def_for + at_level (Lv 1 / 17 / 60 / 120: shown as 100, stronger) of all %d species, group %d" % [g["rows"].size(), ti], bad.is_empty(), str(bad.slice(0, 3)))
 
 static func _bosses(t: Object, V: Dictionary) -> void:
 	var slots: Array = Data.enemies["boss_slots"]

@@ -101,7 +101,7 @@ func spawn_boss(pl: Player, t: float, b: Dictionary) -> Enemy:
 	if b.has("bhp"):
 		# level mode: its level now (wild level + boss_lv); only the overtime curve on top
 		var k := EnemyDefs.late(t)
-		e = Enemy.new(EnemyDefs.boss_at_level(b, EnemyDefs.wild_level(t) + float(EnemyDefs.LV["boss_lv"])), pt[0], pt[1],
+		e = Enemy.new(EnemyDefs.boss_at_level(b, EnemyDefs.boss_level(t)), pt[0], pt[1],
 			{"hp": k, "dmg": pow(k, 0.7), "spd": 1.0}, true)
 	else:
 		e = Enemy.new(b, pt[0], pt[1], EnemyDefs.boss_scale(t), true)
@@ -148,7 +148,10 @@ func update(dt: float, pl: Player, t: float) -> void:
 		if S.render:
 			Sprites.preload_dex(S.defs.upcoming_dex(t, 60.0))
 	var lf := EnemyDefs.LATE_FROM * 60.0
-	if t >= lf and t - dt < lf:
+	# the overtime (minute 60) and, with levels, the wild level reaching its cap (stronger past it)
+	var lc := EnemyDefs.time_of_level(float(EnemyDefs.LV["cap"])) if EnemyDefs.mode == "level" and float(EnemyDefs.LV["cap"]) > 0.0 \
+		and float(EnemyDefs.LV["over_cap"]) > 0.0 else -1.0
+	if (t >= lf and t - dt < lf) or (lc > 0.0 and t >= lc and t - dt < lc):
 		say("¡Los Pokémon salvajes se vuelven cada vez más fuertes!", 3.6)
 		Sfx.play("boss")
 	# --- bosses ---

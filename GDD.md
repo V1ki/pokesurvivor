@@ -175,7 +175,10 @@ amarillo cuando es muy eficaz; gris si no (sin texto, para no cargar la pantalla
   grupos), así cada partida es distinta.
 - **Nivel** (`js/data/enemies.js`, desde 2026-10-15): el de los salvajes empieza en **3**, sube
   **4 por minuto** y desde el minuto 6 cada vez más deprisa (+0,5·(min − 6)²): 15 al minuto 3, 27
-  al 6, 51 al 10, 104 al 15. Cada uno sale con ese nivel ±2. Se ve debajo del reloj.
+  al 6, 51 al 10. Cada uno sale con ese nivel ±2. Se ve debajo del reloj.
+- **Nivel máximo 100**, como en los juegos: se llega hacia el minuto 14:45. A partir de ahí se ve
+  100 (también en los jefes) y empieza el **tiempo extra**: con un aviso, siguen haciéndose más
+  fuertes al mismo ritmo (sus stats salen del nivel que tendrían).
 - **Stats por especie y nivel** (fórmulas de los juegos, IV 31): vida = 2,8 × PS(PS base, Nv) ×
   1,03^(Nv − 3); daño de contacto = 5,4 × (0,2·Nv + 2) × su ataque base (el mayor de Ataque y
   Ataque Especial) sobre uno medio; velocidad por su Velocidad base; experiencia 3,4 + 0,17·Nv.
@@ -580,6 +583,10 @@ guitarra punteada, bajo, pad, lead y batería, con reverb). Cero ficheros.
 - Cada forma sólo sale desde su propio nivel de evolución (no basta con que empiece su grupo);
   la dificultad no cambia con eso.
 - `MODE 'tier'` en `js/data/enemies.js` vuelve al sistema anterior.
+- Tope de 100 (pedido): si al llegar dejaran de subir, con todo mejorado el 20 % de los expertos del
+  simulador seguía vivo al minuto 60 (más de una hora por partida), y el tiempo extra del minuto 60
+  es demasiado suave para tomar el relevo antes. Por eso pasado el 100 se ve 100 pero siguen
+  creciendo igual (`LV.over_cap`).
 
 - Con sólo los movimientos de su lista, muchos Pokémon empezaban con 1 o 2 y se hacía corto:
   se completan hasta 4 ataques con los básicos de su tipo y se empieza con uno de su tipo. En el
